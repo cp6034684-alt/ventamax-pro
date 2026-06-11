@@ -1,0 +1,48 @@
+/* Identidad visual de VentaMax Pro — migrada del index.html original */
+:root {
+  --bg: #07101f; --bg2: #0d1b2e; --bg3: #132238; --card: #0f1e33;
+  --border: #1a2f4a; --accent: #00c8ff; --accent2: #0088cc;
+  --green: #00e5a0; --red: #ff4060; --orange: #ffaa00; --purple: #c084fc;
+  --text: #dff0ff; --muted: #5a7a9a; --radius: 16px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body, #root { height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Sora', sans-serif; touch-action: manipulation;
+}
+.mono { font-family: 'JetBrains Mono', monospace; }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea {
+  font-family: inherit; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 13px; color: var(--text); font-size: 14px; outline: none;
+  width: 100%;
+}
+input:focus, select:focus { border-color: var(--accent); }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.btn {
+  background: linear-gradient(135deg, var(--accent), #0044ff); color: #fff; border: none;
+  border-radius: 12px; padding: 12px 18px; font-weight: 700; font-size: 14px;
+}
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-ghost { background: var(--bg3); border: 1px solid var(--border); color: var(--text); }
+.error-box {
+  background: rgba(255,64,96,.12); border: 1px solid rgba(255,64,96,.3); color: var(--red);
+  font-size: 13px; border-radius: 10px; padding: 10px; text-align: center;
+}
+.muted { color: var(--muted); }
+.green { color: var(--green); }
+.accent { color: var(--accent); }
+
+/* Impresión de recibos: solo se imprime el recibo, en blanco y negro */
+@media print {
+  body * { visibility: hidden; }
+  .recibo-imprimible, .recibo-imprimible * { visibility: visible; }
+  .recibo-imprimible {
+    position: fixed; inset: 0; background: #fff !important;
+    color: #000 !important; border: none !important;
+  }
+  .recibo-imprimible .mono, .recibo-imprimible .green, .recibo-imprimible .muted { color: #000 !important; }
+  .no-imprimir { display: none !important; }
+}

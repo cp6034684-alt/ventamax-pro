@@ -1,0 +1,49 @@
+import { Router } from 'express';
+import { db } from '../../config/db';
+import { requiereAuth, requiereRol } from '../../middleware/auth';
+import { validarBody } from '../../middleware/validate';
+import { leerPaginacion, respuestaPaginada } from '../../utils/pagination';
+import { productoSchema, productoUpdateSchema } from './productos.schemas';
+
+export const productosRouter = Router();
+productosRouter.use(requiereAuth);
+
+// GET /api/productos?busqueda=&categoria=&bajoStock=true
+productosRouter.get('/', async (req, res, next) => {
+  try {
+    const { pagina, porPagina, skip, take } = leerPaginacion(req, 200);
+    const where: any = { activo: true };
+    if (req.query.busqueda) {
+      where.OR = [
+        { nombre: { contains: String(req.query.busqueda), mode: 'insensitive' } },
+        { codigo: { contains: String(req.query.busqueda) } },
+      ];
+    }
+    if (req.query.categoria) where.categoria = String(req.query.categoria);
+
+    const [datos, total] = await Promise.all([
+      db.producto.findMany({ where, skip, take, orderBy: { nombre: 'asc' } }),
+      db.producto.count({ where }),
+    ]);
+    res.json(respuestaPaginada(datos, total, pagina, porPagina));
+  } catch (e) { next(e); }
+});
+
+productosRouter.post('/', requiereRol('ADMIN', 'COADMIN'), validarBody(productoSchema), async (req, res, next) => {
+  try {
+    res.status(201).json(await db.producto.create({ data: req.body }));
+  } catch (e) { next(e); }
+});
+
+productosRouter.put('/:id', requiereRol('ADMIN', 'COADMIN'), validarBody(productoUpdateSchema), async (req, res, next) => {
+  try {
+    res.json(await db.producto.update({ where: { id: req.params.id }, data: req.body }));
+  } catch (e) { next(e); }
+});
+
+productosRouter.delete('/:id', requiereRol('ADMIN'), async (req, res, next) => {
+  try {
+    await db.producto.update({ where: { id: req.params.id }, data: { activo: false } });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
