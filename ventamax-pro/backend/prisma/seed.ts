@@ -8,12 +8,12 @@ async function main() {
 
   await db.usuario.upsert({
     where: { usuario: 'admin' },
-    update: {},
+    update: { pinHash: pin },  // ← FORZAR ACTUALIZACIÓN
     create: { nombre: 'Administrador', usuario: 'admin', pinHash: pin, rol: 'ADMIN' },
   });
   await db.usuario.upsert({
     where: { usuario: 'vendedor1' },
-    update: {},
+    update: { pinHash: pin },  // ← FORZAR ACTUALIZACIÓN
     create: { nombre: 'Vendedor Demo', usuario: 'vendedor1', pinHash: pin, rol: 'VENDEDOR', zona: 'Centro' },
   });
 
