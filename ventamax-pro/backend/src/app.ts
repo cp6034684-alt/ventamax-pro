@@ -19,7 +19,12 @@ export function crearApp() {
   const app = express();
 
   app.use(helmet());
-  app.use(cors({ origin: env.CORS_ORIGIN.split(',') }));
+  app.use(cors({ 
+  origin: env.CORS_ORIGIN.split(','),
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+  }));
   app.use(express.json({ limit: '5mb' })); // 5mb: las importaciones de Excel llegan como JSON
   app.use(pinoHttp({ autoLogging: process.env.NODE_ENV === 'production' }));
 
