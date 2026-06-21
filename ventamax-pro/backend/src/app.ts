@@ -13,6 +13,7 @@ import { reportesRouter } from './modules/reportes/reportes.routes';
 import { proveedoresRouter } from './modules/proveedores/proveedores.routes';
 import { inventarioRouter } from './modules/inventario/inventario.routes';
 import { importarRouter } from './modules/importar/importar.routes';
+import { gastosRouter } from './modules/gastos/gastos.routes';
 import { presenciaRouter } from './modules/presencia/presencia.routes';
 import { rastreoRouter } from './modules/rastreo/rastreo.routes';
 import { regionesRouter, bodegasRouter } from './modules/bodegas/bodegas.routes';
@@ -22,7 +23,22 @@ export function crearApp() {
   const app = express();
 
   app.use(helmet());
-  app.use(cors({ origin: env.CORS_ORIGIN.split(',') }));
+
+  // CORS: autoriza los orígenes de CORS_ORIGIN (env) y SIEMPRE el frontend en
+  // Cloudflare Pages (apex y cualquier subdominio de deploy *.pages.dev).
+  const origenesEnv = env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
+  app.use(cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // healthchecks / herramientas sin origin
+      const permitido = origenesEnv.includes(origin)
+        || /^https:\/\/([a-z0-9-]+\.)?ventamax-frontend\.pages\.dev$/.test(origin);
+      cb(null, permitido);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  }));
+
   app.use(express.json({ limit: '5mb' })); // 5mb: las importaciones de Excel llegan como JSON
   app.use(pinoHttp({ autoLogging: process.env.NODE_ENV === 'production' }));
 
@@ -37,6 +53,7 @@ export function crearApp() {
   app.use('/api/proveedores', proveedoresRouter);
   app.use('/api/inventario', inventarioRouter);
   app.use('/api/importar', importarRouter);
+  app.use('/api/gastos', gastosRouter);
   app.use('/api/presencia', presenciaRouter);
   app.use('/api/rastreo', rastreoRouter);
   app.use('/api/regiones', regionesRouter);
