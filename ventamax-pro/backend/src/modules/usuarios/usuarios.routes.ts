@@ -28,7 +28,7 @@ usuariosRouter.use(requiereAuth, requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'));
 usuariosRouter.get('/', async (_req, res, next) => {
   try {
     res.json(await db.usuario.findMany({
-      select: ({ id: true, nombre: true, usuario: true, rol: true, zona: true, meta: true, listasPrecios: true, activo: true, creadoEn: true, regionId: true, region: { select: { id: true, nombre: true } } } as any),
+      select: ({ id: true, nombre: true, usuario: true, rol: true, zona: true, documento: true, ciudad: true, meta: true, listasPrecios: true, activo: true, creadoEn: true, regionId: true, region: { select: { id: true, nombre: true } } } as any),
       orderBy: { nombre: 'asc' },
     }));
   } catch (e) { next(e); }
@@ -51,6 +51,7 @@ usuariosRouter.post('/', validarBody(usuarioSchema), async (req, res, next) => {
 usuariosRouter.patch('/:id', async (req, res, next) => {
   try {
     const data: any = {};
+    if (req.body.nombre) data.nombre = req.body.nombre;
     if (req.body.pin) data.pinHash = await bcrypt.hash(req.body.pin, 10);
     if (req.body.activo !== undefined) data.activo = req.body.activo;
     if (req.body.zona !== undefined) data.zona = req.body.zona;

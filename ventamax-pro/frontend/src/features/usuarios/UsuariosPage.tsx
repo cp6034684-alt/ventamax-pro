@@ -10,6 +10,7 @@ const COLOR_ROL: Record<string, string> = {
 
 export function UsuariosPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const { usuario } = useAuth();
   // Un supervisor no puede crear administradores ni co-administradores.
   const puedeCrearAdmins = usuario?.rol === 'ADMIN' || usuario?.rol === 'COADMIN';
@@ -91,6 +92,8 @@ export function UsuariosPage() {
               </div>
             </div>
             <button className="btn btn-ghost" style={{ padding: '6px 10px', fontSize: 11 }}
+              onClick={() => setEditId(editId === u.id ? null : u.id)}>✏️</button>
+            <button className="btn btn-ghost" style={{ padding: '6px 10px', fontSize: 11 }}
               onClick={() => {
                 const v = prompt(`Meta mensual de ${u.nombre}:`, String(u.meta ?? 10000000));
                 if (v != null) {
@@ -110,12 +113,48 @@ export function UsuariosPage() {
               {u.activo === false ? 'Activar' : 'Desactivar'}
             </button>
           </div>
-          {(u.rol === 'VENDEDOR' || u.region) && (
-            <select value={u.region?.id ?? ''} onChange={e => actualizar.mutate({ id: u.id, regionId: e.target.value || null })}
-              style={{ fontSize: 11, padding: '5px 8px', width: 'auto' }}>
-              <option value="">Sin región asignada</option>
-              {regiones?.map(r => <option key={r.id} value={r.id}>Región: {r.nombre}</option>)}
-            </select>
+          {editId === u.id && (
+            <form style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 10 }}
+              onSubmit={e => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                actualizar.mutate({
+                  id: u.id,
+                  nombre: String(fd.get('nombre') || '').trim() || undefined,
+                  rol: String(fd.get('rol') || '') || undefined,
+                  zona: String(fd.get('zona') || ''),
+                  documento: String(fd.get('documento') || ''),
+                  ciudad: String(fd.get('ciudad') || ''),
+                  meta: fd.get('meta') ? Number(String(fd.get('meta')).replace(/[^\d]/g, '')) : undefined,
+                  regionId: String(fd.get('regionId') || '') || null,
+                });
+                setEditId(null);
+              }}>
+              <input name="nombre" defaultValue={u.nombre} placeholder="Nombre completo" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select name="rol" defaultValue={u.rol} style={{ flex: 1 }}>
+                  <option value="VENDEDOR">Vendedor</option>
+                  <option value="ENTREGADOR">Entregador</option>
+                  <option value="SUPERVISOR">Supervisor</option>
+                  {puedeCrearAdmins && <option value="COADMIN">Co-admin</option>}
+                  {puedeCrearAdmins && <option value="ADMIN">Admin</option>}
+                </select>
+                <input name="meta" defaultValue={u.meta ?? 10000000} placeholder="Meta" inputMode="numeric" style={{ maxWidth: 130 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input name="documento" defaultValue={u.documento ?? ''} placeholder="Documento" inputMode="numeric" />
+                <input name="ciudad" defaultValue={u.ciudad ?? ''} placeholder="Ciudad" />
+              </div>
+              <input name="zona" defaultValue={u.zona ?? ''} placeholder="Zona / ruta" />
+              <select name="regionId" defaultValue={u.region?.id ?? ''}>
+                <option value="">Sin región asignada</option>
+                {regiones?.map(r => <option key={r.id} value={r.id}>Región: {r.nombre}</option>)}
+              </select>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" type="submit" style={{ flex: 1 }}>Guardar cambios</button>
+                <button className="btn btn-ghost" type="button" onClick={() => setEditId(null)}>Cancelar</button>
+              </div>
+            </form>
           )}
         </div>
       ))}
