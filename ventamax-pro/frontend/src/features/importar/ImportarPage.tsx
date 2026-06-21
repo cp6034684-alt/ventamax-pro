@@ -98,7 +98,7 @@ export function ImportarPage() {
         }
       }
       return fila;
-    }).filter(f => tipo === 'listas' ? (f.nit && f.listaPrecio) : tipo === 'inventario' ? f.codigo : f.nombre);
+    }).filter(f => tipo === 'listas' ? (f.nit && f.listaPrecio) : tipo === 'inventario' ? (f.codigo && f.nombre) : f.nombre);
 
     let finales = limpias;
     if (tipo === 'listas') {
