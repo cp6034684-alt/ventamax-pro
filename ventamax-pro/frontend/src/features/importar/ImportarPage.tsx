@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { importarApi } from '../../api/servicios';
+import { importarApi, bodegasApi } from '../../api/servicios';
+import type { Bodega } from '../../api/tipos';
 
 type Tipo = 'clientes' | 'productos' | 'listas' | 'inventario';
 
@@ -73,9 +74,14 @@ export function ImportarPage() {
   const [error, setError] = useState('');
   const [subiendo, setSubiendo] = useState(false);
   const [asignarCodigo, setAsignarCodigo] = useState(false);
+  const [bodegas, setBodegas] = useState<Bodega[]>([]);
+  const [bodegaId, setBodegaId] = useState('');
+  const [nombreArchivo, setNombreArchivo] = useState('');
+  const [ultimaCarga, setUltimaCarga] = useState<string | null>(null);
+  useEffect(() => { bodegasApi.listar().then(setBodegas).catch(() => undefined); }, []);
 
   const leerArchivo = async (archivo: File) => {
-    setError(''); setResultado('');
+    setError(''); setResultado(''); setUltimaCarga(null); setNombreArchivo(archivo.name);
     const buffer = await archivo.arrayBuffer();
     const libro = XLSX.read(buffer);
     const hoja = libro.Sheets[libro.SheetNames[0]];
@@ -134,7 +140,8 @@ export function ImportarPage() {
   };
 
   const subir = async () => {
-    setSubiendo(true); setError('');
+    if (tipo === 'inventario' && !bodegaId) { setError('Elige primero la bodega a la que va este inventario.'); return; }
+    setSubiendo(true); setError(''); setUltimaCarga(null);
     try {
       if (tipo === 'listas') {
         const r = await importarApi.listasCliente(filas);
@@ -147,14 +154,15 @@ export function ImportarPage() {
     }
     // El backend acepta hasta 2.000 por lote; subimos en bloques para soportar
     // archivos grandes (miles de clientes) sin reventar el límite.
-    const LOTE = tipo === 'inventario' ? 300 : 1000;
+    const LOTE = tipo === 'inventario' ? 5000 : 1000;
     let insertados = 0, omitidos = 0, actualizados = 0, creados = 0;
     try {
       for (let i = 0; i < filas.length; i += LOTE) {
         const bloque = filas.slice(i, i + LOTE);
         if (tipo === 'inventario') {
-          const r = await importarApi.inventario(bloque);
+          const r = await importarApi.inventario(bodegaId, bloque, nombreArchivo);
           actualizados += r.actualizados; creados += r.creados;
+          if (r.cargaId) setUltimaCarga(r.cargaId);
         } else {
           const r: { insertados: number; omitidos?: number } = tipo === 'clientes'
             ? await importarApi.clientes(bloque, asignarCodigo)
@@ -164,7 +172,7 @@ export function ImportarPage() {
         }
         setResultado(`Importando… ${Math.min(i + LOTE, filas.length)} / ${filas.length}`);
       }
-      if (tipo === 'inventario') setResultado(`✅ Inventario: ${actualizados} actualizado(s), ${creados} nuevo(s)`);
+      if (tipo === 'inventario') { const nb = bodegas.find(b => b.id === bodegaId)?.nombre ?? ''; setResultado(`✅ Inventario en ${nb}: ${actualizados} actualizado(s), ${creados} nuevo(s)`); }
       else setResultado(`✅ ${insertados} fila(s) importada(s)${omitidos ? ` · ${omitidos} omitida(s) por código duplicado` : ''}`);
       setFilas([]);
     } catch (e: any) {
@@ -203,6 +211,17 @@ export function ImportarPage() {
               onChange={e => e.target.files?.[0] && leerArchivo(e.target.files[0])} />
           </label>
         </div>
+        {tipo === 'inventario' && (
+          <div style={{ marginTop: 10 }}>
+            <label style={{ fontSize: 12, color: 'var(--muted)' }}>Bodega a la que entra este inventario:
+              <select value={bodegaId} onChange={e => setBodegaId(e.target.value)} style={{ marginTop: 4 }}>
+                <option value="">Elegir bodega…</option>
+                {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+              </select>
+            </label>
+            {!bodegas.length && <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>No hay bodegas creadas. Créalas en MÁS → Bodegas.</p>}
+          </div>
+        )}
         {tipo === 'clientes' && (
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
             <input type="checkbox" checked={asignarCodigo} onChange={e => setAsignarCodigo(e.target.checked)}
@@ -232,13 +251,23 @@ export function ImportarPage() {
             </table>
             {filas.length > 5 && <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>… y {filas.length - 5} más</p>}
           </div>
-          <button className="btn" style={{ width: '100%' }} onClick={subir} disabled={subiendo}>
+          <button className="btn" style={{ width: '100%' }} onClick={subir} disabled={subiendo || (tipo === 'inventario' && !bodegaId)}>
             {subiendo ? 'Importando…' : `Importar ${filas.length} ${tipo}`}
           </button>
         </div>
       )}
 
       {resultado && <div className="card" style={{ borderColor: 'var(--green)', color: 'var(--green)', textAlign: 'center' }}>{resultado}</div>}
+      {ultimaCarga && tipo === 'inventario' && (
+        <button className="btn btn-ghost" style={{ borderColor: 'var(--red)', color: 'var(--red)' }}
+          onClick={async () => {
+            if (!confirm('¿Devolver esta última carga? El inventario de esa bodega vuelve a como estaba antes.')) return;
+            try { await importarApi.revertirCarga(ultimaCarga); setResultado('↩️ Carga devuelta. El inventario volvió a su estado anterior.'); setUltimaCarga(null); }
+            catch (e: any) { setError(e.message); }
+          }}>
+          ↩️ Devolver esta carga (si fue a la bodega equivocada)
+        </button>
+      )}
       {error && <div className="card" style={{ borderColor: 'var(--red)', color: 'var(--red)', textAlign: 'center' }}>{error}</div>}
     </div>
   );

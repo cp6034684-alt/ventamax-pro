@@ -36,6 +36,7 @@ model Usuario {
   ciudad       String? // ciudad base del usuario
   meta         Int       @default(10000000) // meta de venta mensual (para el % de meta del dashboard)
   listasPrecios String[] @default([]) // listas de precio que puede usar
+  regionId     String? // región asignada (define su bodega para las ventas)
   creadoEn     DateTime  @default(now())
   actualizadoEn DateTime @updatedAt
 
@@ -43,6 +44,7 @@ model Usuario {
   entregas  Factura[]  @relation("entregador")
   gastos    Gasto[]
   tareas    Tarea[]    @relation("tareasEntregador")
+  region    Region?    @relation(fields: [regionId], references: [id])
 
   @@index([rol, activo])
   @@map("usuarios")
@@ -118,12 +120,14 @@ model Visita {
 
 // ── Regiones y bodegas (la empresa opera en varias regiones) ──
 model Region {
-  id       String   @id @default(uuid())
-  nombre   String   @unique
-  activo   Boolean  @default(true)
-  creadoEn DateTime @default(now())
+  id                String   @id @default(uuid())
+  nombre            String   @unique
+  activo            Boolean  @default(true)
+  bodegaPrincipalId String? // bodega de la que despachan/descuentan los vendedores de esta región
+  creadoEn          DateTime @default(now())
 
-  bodegas  Bodega[]
+  bodegas   Bodega[]
+  usuarios  Usuario[]
 
   @@map("regiones")
 }
@@ -139,6 +143,8 @@ model Bodega {
   creadoEn  DateTime @default(now())
 
   region    Region?  @relation(fields: [regionId], references: [id])
+  stock     StockBodega[]
+  cargas    CargaInventario[]
 
   @@index([regionId])
   @@map("bodegas")
@@ -187,6 +193,7 @@ model Producto {
 
   items          FacturaItem[]
   movimientos    MovimientoStock[]
+  stockBodega    StockBodega[]
 
   @@index([nombre])
   @@index([categoria, activo])
@@ -312,4 +319,48 @@ model Proveedor {
 
   @@index([nombre])
   @@map("proveedores")
+}
+
+// ── Inventario por bodega ─────────────────────────────────────
+model StockBodega {
+  id         String   @id @default(uuid())
+  productoId String
+  bodegaId   String
+  cantidad   Int      @default(0)
+
+  producto Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  bodega   Bodega   @relation(fields: [bodegaId], references: [id], onDelete: Cascade)
+
+  @@unique([productoId, bodegaId])
+  @@index([bodegaId])
+  @@map("stock_bodega")
+}
+
+model CargaInventario {
+  id         String   @id @default(uuid())
+  bodegaId   String
+  usuarioId  String?
+  archivo    String?
+  totalItems Int      @default(0)
+  revertida  Boolean  @default(false)
+  creadoEn   DateTime @default(now())
+
+  bodega Bodega @relation(fields: [bodegaId], references: [id], onDelete: Cascade)
+  items  CargaInventarioItem[]
+
+  @@index([bodegaId, creadoEn])
+  @@map("cargas_inventario")
+}
+
+model CargaInventarioItem {
+  id               String @id @default(uuid())
+  cargaId          String
+  productoId       String
+  cantidadAnterior Int
+  cantidadNueva    Int
+
+  carga CargaInventario @relation(fields: [cargaId], references: [id], onDelete: Cascade)
+
+  @@index([cargaId])
+  @@map("cargas_inventario_items")
 }

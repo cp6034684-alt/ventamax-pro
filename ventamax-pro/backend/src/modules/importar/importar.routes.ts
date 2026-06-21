@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { db } from '../../config/db';
 import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
@@ -127,52 +128,134 @@ importarRouter.post('/productos', validarBody(loteProductosSchema), async (req, 
   } catch (e) { next(e); }
 });
 
-// ── Inventario (informe de bodega) ────────────────────────────
-// Actualiza por REFERENCIA(codigo): existencia (stock) y precio TAT,
-// corrige la marca; crea los productos que no existan.
+// ── Inventario por bodega (informe de bodega) ─────────────────
+// Actualiza la EXISTENCIA por bodega + precio/marca por REFERENCIA(codigo),
+// registra la carga (para poder devolverla) y recalcula el total del producto.
 const loteInventarioSchema = z.object({
+  bodegaId: z.string().uuid(),
+  archivo: z.string().optional(),
   filas: z.array(z.object({
     codigo: z.string().min(1),
     nombre: z.string().optional(),
     marca: z.string().optional(),
     precioTat: z.number().min(0).optional(),
     stock: z.number().optional(),
-  })).min(1).max(2000),
+  })).min(1).max(5000),
 });
 
 importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req, res, next) => {
   try {
-    const filas = (req.body.filas as any[]).map((f) => ({
-      codigo: String(f.codigo).trim(),
-      nombre: f.nombre ? String(f.nombre).trim() : undefined,
-      marca: f.marca ? String(f.marca).trim() : undefined,
-      precioTat: typeof f.precioTat === 'number' ? f.precioTat : undefined,
-      stock: typeof f.stock === 'number' ? Math.round(f.stock) : 0,
-    })).filter((f) => f.codigo);
+    const bodegaId = req.body.bodegaId as string;
+    const porCodigo = new Map<string, any>();
+    for (const raw of req.body.filas as any[]) {
+      const codigo = String(raw.codigo).trim();
+      if (!codigo) continue;
+      porCodigo.set(codigo, {
+        codigo,
+        nombre: raw.nombre ? String(raw.nombre).trim() : null,
+        marca: raw.marca ? String(raw.marca).trim() : null,
+        precioTat: typeof raw.precioTat === 'number' ? raw.precioTat : null,
+        cantidad: typeof raw.stock === 'number' ? Math.round(raw.stock) : 0,
+      });
+    }
+    const filas = [...porCodigo.values()];
+    if (!filas.length) return res.json({ actualizados: 0, creados: 0, cargaId: null });
 
-    const codigos = filas.map((f) => f.codigo);
-    const existentes = await db.producto.findMany({ where: { codigo: { in: codigos } }, select: { id: true, codigo: true } });
-    const mapa = new Map(existentes.map((p) => [p.codigo as string, p.id]));
+    const resultado = await db.$transaction(async (tx) => {
+      const bodega = await (tx as any).bodega.findUnique({ where: { id: bodegaId } });
+      if (!bodega) throw Object.assign(new Error('Bodega no encontrada'), { status: 400, expose: true });
 
-    const ops: any[] = [];
-    const nuevos: any[] = [];
-    for (const f of filas) {
-      const id = mapa.get(f.codigo);
-      if (id) {
-        const data: any = { stock: f.stock };
-        if (f.precioTat !== undefined) { data.precioTat = f.precioTat; data.precioVenta = f.precioTat; }
-        if (f.marca) data.marca = f.marca;
-        if (f.nombre) data.nombre = f.nombre;
-        ops.push(db.producto.update({ where: { id }, data }));
-      } else {
-        nuevos.push({
-          codigo: f.codigo, nombre: f.nombre || f.codigo, marca: f.marca,
-          precioTat: f.precioTat ?? 0, precioVenta: f.precioTat ?? 0, stock: f.stock,
+      const codigos = filas.map((f) => f.codigo);
+      const existentes = await tx.producto.findMany({ where: { codigo: { in: codigos } }, select: { id: true, codigo: true } });
+      const mapa = new Map(existentes.map((p) => [p.codigo as string, p.id]));
+
+      const nuevos = filas.filter((f) => !mapa.has(f.codigo));
+      if (nuevos.length) {
+        await tx.producto.createMany({
+          data: nuevos.map((f) => ({
+            codigo: f.codigo, nombre: f.nombre || f.codigo, marca: f.marca ?? undefined,
+            precioTat: f.precioTat ?? 0, precioVenta: f.precioTat ?? 0, stock: 0,
+          })),
+          skipDuplicates: true,
+        });
+        const recien = await tx.producto.findMany({ where: { codigo: { in: nuevos.map((n) => n.codigo) } }, select: { id: true, codigo: true } });
+        for (const p of recien) mapa.set(p.codigo as string, p.id);
+      }
+
+      const conId = filas.map((f) => ({ ...f, productoId: mapa.get(f.codigo)! })).filter((f) => f.productoId);
+      const prodIds = conId.map((f) => f.productoId);
+
+      const sbPrev = await (tx as any).stockBodega.findMany({ where: { bodegaId, productoId: { in: prodIds } }, select: { productoId: true, cantidad: true } });
+      const prevMap = new Map(sbPrev.map((s: any) => [s.productoId, s.cantidad]));
+
+      const carga = await (tx as any).cargaInventario.create({
+        data: { bodegaId, usuarioId: req.usuario!.id, archivo: req.body.archivo ?? null, totalItems: conId.length },
+      });
+      await (tx as any).cargaInventarioItem.createMany({
+        data: conId.map((f) => ({ cargaId: carga.id, productoId: f.productoId, cantidadAnterior: prevMap.get(f.productoId) ?? 0, cantidadNueva: f.cantidad })),
+      });
+
+      await (tx as any).stockBodega.deleteMany({ where: { bodegaId, productoId: { in: prodIds } } });
+      await (tx as any).stockBodega.createMany({
+        data: conId.map((f) => ({ productoId: f.productoId, bodegaId, cantidad: f.cantidad })),
+      });
+
+      const ids = conId.map((f) => f.productoId);
+      const precios = conId.map((f) => f.precioTat);
+      const marcas = conId.map((f) => f.marca);
+      const nombres = conId.map((f) => f.nombre);
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE productos AS p SET
+          "precioTat"   = COALESCE(d.precio, p."precioTat"),
+          "precioVenta" = COALESCE(d.precio, p."precioVenta"),
+          marca         = COALESCE(d.marca, p.marca),
+          nombre        = COALESCE(d.nombre, p.nombre)
+        FROM unnest(${ids}::text[], ${precios}::numeric[], ${marcas}::text[], ${nombres}::text[]) AS d(id, precio, marca, nombre)
+        WHERE p.id = d.id`);
+
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE productos p SET stock = COALESCE((SELECT SUM(sb.cantidad)::int FROM stock_bodega sb WHERE sb."productoId" = p.id), 0)
+        WHERE p.id IN (SELECT "productoId" FROM stock_bodega WHERE "bodegaId" = ${bodegaId})`);
+
+      return { actualizados: conId.length - nuevos.length, creados: nuevos.length, cargaId: carga.id };
+    }, { timeout: 120000, maxWait: 20000 });
+
+    res.json(resultado);
+  } catch (e) { next(e); }
+});
+
+// Cargas recientes (para devolver la última si fue a la bodega equivocada)
+importarRouter.get('/inventario/cargas', async (req, res, next) => {
+  try {
+    const where: any = {};
+    if (req.query.bodegaId) where.bodegaId = String(req.query.bodegaId);
+    const cargas = await (db as any).cargaInventario.findMany({
+      where, orderBy: { creadoEn: 'desc' }, take: 30,
+      include: { bodega: { select: { nombre: true } } },
+    });
+    res.json(cargas);
+  } catch (e) { next(e); }
+});
+
+// Devolver (revertir) una carga: restaura el saldo anterior de cada producto en esa bodega
+importarRouter.post('/inventario/cargas/:id/revertir', async (req, res, next) => {
+  try {
+    const out = await db.$transaction(async (tx) => {
+      const carga = await (tx as any).cargaInventario.findUnique({ where: { id: req.params.id }, include: { items: true } });
+      if (!carga) throw Object.assign(new Error('Carga no encontrada'), { status: 404, expose: true });
+      if (carga.revertida) throw Object.assign(new Error('Esta carga ya fue devuelta'), { status: 400, expose: true });
+      for (const it of carga.items as any[]) {
+        await (tx as any).stockBodega.updateMany({
+          where: { bodegaId: carga.bodegaId, productoId: it.productoId },
+          data: { cantidad: it.cantidadAnterior },
         });
       }
-    }
-    if (nuevos.length) ops.push(db.producto.createMany({ data: nuevos, skipDuplicates: true }));
-    await db.$transaction(ops);
-    res.json({ actualizados: filas.length - nuevos.length, creados: nuevos.length });
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE productos p SET stock = COALESCE((SELECT SUM(sb.cantidad)::int FROM stock_bodega sb WHERE sb."productoId" = p.id), 0)
+        WHERE p.id IN (SELECT "productoId" FROM stock_bodega WHERE "bodegaId" = ${carga.bodegaId})`);
+      await (tx as any).cargaInventario.update({ where: { id: carga.id }, data: { revertida: true } });
+      return { revertida: true, items: (carga.items as any[]).length };
+    }, { timeout: 120000, maxWait: 20000 });
+    res.json(out);
   } catch (e) { next(e); }
 });

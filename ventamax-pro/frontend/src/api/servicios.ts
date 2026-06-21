@@ -102,7 +102,8 @@ export const importarApi = {
     api<{ insertados: number }>('/importar/clientes', { method: 'POST', body: JSON.stringify({ filas, asignarCodigo }) }),
   productos: (filas: any[]) => api<{ insertados: number; omitidos: number }>('/importar/productos', { method: 'POST', body: JSON.stringify({ filas }) }),
   listasCliente: (filas: any[]) => api<{ actualizados: number; listas: number; invalidas: number }>('/importar/listas-cliente', { method: 'POST', body: JSON.stringify({ filas }) }),
-  inventario: (filas: any[]) => api<{ actualizados: number; creados: number }>('/importar/inventario', { method: 'POST', body: JSON.stringify({ filas }) }),
+  inventario: (bodegaId: string, filas: any[], archivo?: string) => api<{ actualizados: number; creados: number; cargaId: string | null }>('/importar/inventario', { method: 'POST', body: JSON.stringify({ bodegaId, filas, archivo }) }),
+  revertirCarga: (id: string) => api<{ revertida: boolean; items: number }>(`/importar/inventario/cargas/${id}/revertir`, { method: 'POST' }),
 };
 
 export const usuariosApi = {
