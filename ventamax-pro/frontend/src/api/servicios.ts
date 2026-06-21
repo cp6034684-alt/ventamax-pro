@@ -166,4 +166,9 @@ export const bodegasApi = {
   eliminar: (id: string) => api<{ ok: boolean }>(`/bodegas/${id}`, { method: 'DELETE' }),
 };
 
-export const rastreoAp
+export const rastreoApi = {
+  vendedores: () => api<VendedorRastreo[]>('/rastreo/vendedores'),
+  vivo: () => api<PosicionViva[]>('/rastreo/vivo'),
+  recorrido: (vendedorId: string, fecha: string) =>
+    api<Recorrido>(`/rastreo/recorrido?vendedorId=${vendedorId}&fecha=${fecha}`),
+};
