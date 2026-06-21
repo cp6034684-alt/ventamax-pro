@@ -25,7 +25,13 @@ productosRouter.get('/', async (req, res, next) => {
       db.producto.findMany({ where, skip, take, orderBy: { nombre: 'asc' } }),
       db.producto.count({ where }),
     ]);
-    res.json(respuestaPaginada(datos, total, pagina, porPagina));
+    // El precio de costo (precioCompra) solo lo pueden ver los administradores.
+    // Para cualquier otro rol (supervisor, vendedor, entregador) se elimina antes de enviar.
+    const veCosto = req.usuario && ['ADMIN', 'COADMIN'].includes(req.usuario.rol);
+    const salida = veCosto
+      ? datos
+      : datos.map(({ precioCompra, ...resto }: any) => resto);
+    res.json(respuestaPaginada(salida, total, pagina, porPagina));
   } catch (e) { next(e); }
 });
 

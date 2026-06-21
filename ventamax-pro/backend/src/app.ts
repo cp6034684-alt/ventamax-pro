@@ -9,22 +9,20 @@ import { usuariosRouter } from './modules/usuarios/usuarios.routes';
 import { clientesRouter } from './modules/clientes/clientes.routes';
 import { productosRouter } from './modules/productos/productos.routes';
 import { facturasRouter } from './modules/facturas/facturas.routes';
-import { gastosRouter } from './modules/gastos/gastos.routes';
 import { reportesRouter } from './modules/reportes/reportes.routes';
 import { proveedoresRouter } from './modules/proveedores/proveedores.routes';
 import { inventarioRouter } from './modules/inventario/inventario.routes';
 import { importarRouter } from './modules/importar/importar.routes';
+import { presenciaRouter } from './modules/presencia/presencia.routes';
+import { rastreoRouter } from './modules/rastreo/rastreo.routes';
+import { regionesRouter, bodegasRouter } from './modules/bodegas/bodegas.routes';
+import { tareasRouter } from './modules/tareas/tareas.routes';
 
 export function crearApp() {
   const app = express();
 
   app.use(helmet());
-  app.use(cors({ 
-  origin: env.CORS_ORIGIN.split(','),
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-  }));
+  app.use(cors({ origin: env.CORS_ORIGIN.split(',') }));
   app.use(express.json({ limit: '5mb' })); // 5mb: las importaciones de Excel llegan como JSON
   app.use(pinoHttp({ autoLogging: process.env.NODE_ENV === 'production' }));
 
@@ -35,12 +33,15 @@ export function crearApp() {
   app.use('/api/clientes', clientesRouter);
   app.use('/api/productos', productosRouter);
   app.use('/api/facturas', facturasRouter);
-  app.use('/api/gastos', gastosRouter);
   app.use('/api/reportes', reportesRouter);
   app.use('/api/proveedores', proveedoresRouter);
   app.use('/api/inventario', inventarioRouter);
   app.use('/api/importar', importarRouter);
-
+  app.use('/api/presencia', presenciaRouter);
+  app.use('/api/rastreo', rastreoRouter);
+  app.use('/api/regiones', regionesRouter);
+  app.use('/api/bodegas', bodegasRouter);
+  app.use('/api/tareas', tareasRouter);
   app.use((_req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
   app.use(manejadorErrores);
 

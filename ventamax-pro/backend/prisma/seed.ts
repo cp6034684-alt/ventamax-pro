@@ -8,16 +8,21 @@ async function main() {
 
   await db.usuario.upsert({
     where: { usuario: 'admin' },
-    update: { pinHash: pin },  // ← FORZAR ACTUALIZACIÓN
+    update: {},
     create: { nombre: 'Administrador', usuario: 'admin', pinHash: pin, rol: 'ADMIN' },
   });
   await db.usuario.upsert({
     where: { usuario: 'vendedor1' },
-    update: { pinHash: pin },  // ← FORZAR ACTUALIZACIÓN
-    create: { nombre: 'Vendedor Demo', usuario: 'vendedor1', pinHash: pin, rol: 'VENDEDOR', zona: 'Centro' },
+    update: {},
+    create: { nombre: 'Vendedor Demo', usuario: 'vendedor1', pinHash: pin, rol: 'VENDEDOR', zona: 'Centro', listasPrecios: ['TAT'] },
+  });
+  await db.usuario.upsert({
+    where: { usuario: 'supervisor1' },
+    update: {},
+    create: { nombre: 'Supervisor Demo', usuario: 'supervisor1', pinHash: pin, rol: 'SUPERVISOR', zona: 'Centro', listasPrecios: ['TAT'] },
   });
 
-  console.log('✅ Seed listo. Usuarios: admin / vendedor1 — PIN: 1234 (cámbialo en producción)');
+  console.log('✅ Seed listo. Usuarios: admin / supervisor1 / vendedor1 — PIN: 1234 (cámbialo en producción)');
 }
 
 main().finally(() => db.$disconnect());

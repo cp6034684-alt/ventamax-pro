@@ -2,12 +2,61 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { importarApi } from '../../api/servicios';
 
-type Tipo = 'clientes' | 'productos';
+type Tipo = 'clientes' | 'productos' | 'listas';
 
 const COLUMNAS: Record<Tipo, string> = {
-  clientes: 'nombre*, contacto, telefono, direccion, barrio, diaVisita (1-7), lat, lng',
-  productos: 'nombre*, codigo, categoria, precioCompra, precioVenta*, stock, stockMinimo',
+  clientes: 'nombre*, razonSocial, nit, tipologia, listaPrecio, contacto, telefono, correo, direccion, barrio, ciudad, zona, segmento, diaVisita (1-7), lat, lng',
+  productos: 'codigo, nombre*, marca, categoria, linea, segmento, subsegmento, unidad, iva, precioCompra, precioGeneral, precioMayorista, precioTat, precioDroguerias, precioTatViajeros, precioEntreSede, stock',
+  listas: 'nit, listaPrecio (tipologia opcional) — actualiza la lista de los clientes existentes por NIT',
 };
+
+// El código del cliente lo genera el sistema (VMX-####), por eso no se importa.
+
+// Normaliza un encabezado: minúsculas, sin tildes, sin espacios extra
+const normHeader = (s: string) =>
+  s.toString().trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// Acepta encabezados en español / variantes y los mapea a las claves del backend
+const ALIAS: Record<string, string> = {
+  nombre: 'nombre', 'nombre del negocio': 'nombre', negocio: 'nombre', nomcom: 'nombre',
+  'razon social': 'razonSocial', razonsocial: 'razonSocial', 'nombre cliente': 'razonSocial',
+  tipologia: 'tipologia', 'tipologia cliente': 'tipologia',
+  'lista precio': 'listaPrecio', listaprecio: 'listaPrecio', 'lista de precio': 'listaPrecio',
+  contacto: 'contacto', tendero: 'contacto', 'nombre del tendero': 'contacto', propietario: 'contacto', cliente: 'contacto',
+  telefono: 'telefono', celular: 'telefono', tel: 'telefono', movil: 'telefono',
+  direccion: 'direccion', dir: 'direccion',
+  barrio: 'barrio',
+  ciudad: 'ciudad', municipio: 'ciudad', poblacion: 'ciudad',
+  correo: 'correo', email: 'correo', 'e-mail': 'correo', 'email fe': 'correo', 'correo electronico': 'correo',
+  nit: 'nit', 'nit/cc': 'nit', cc: 'nit', identificacion: 'nit', cedula: 'nit', documento: 'nit',
+  zona: 'zona', ruta: 'zona',
+  segmento: 'segmento', canal: 'segmento',
+  dia: 'diaVisita', 'dia de visita': 'diaVisita', diavisita: 'diaVisita', 'dia visita': 'diaVisita',
+  lat: 'lat', latitud: 'lat',
+  lng: 'lng', lon: 'lng', long: 'lng', longitud: 'lng',
+  codigo: 'codigo', sku: 'codigo', 'codigo de barras': 'codigo', referencia: 'codigo',
+  detalle: 'nombre', descripcion: 'nombre', articulo: 'nombre',
+  categoria: 'categoria', grupo: 'categoria',
+  marca: 'marca', fabricante: 'marca',
+  linea: 'linea', subsegmento: 'subsegmento', 'sub segmento': 'subsegmento',
+  iva: 'iva', '% iva': 'iva', 'porcentaje iva': 'iva',
+  unidad: 'unidad', embalaje: 'unidad',
+  preciocompra: 'precioCompra', 'precio compra': 'precioCompra', costo: 'precioCompra', 'costo.prom': 'precioCompra',
+  precioventa: 'precioVenta', 'precio venta': 'precioVenta', precio: 'precioVenta',
+  preciogeneral: 'precioGeneral', general: 'precioGeneral', 'lista general': 'precioGeneral',
+  preciomayorista: 'precioMayorista', mayorista: 'precioMayorista',
+  preciotat: 'precioTat', tat: 'precioTat',
+  preciodroguerias: 'precioDroguerias', droguerias: 'precioDroguerias',
+  preciotatviajeros: 'precioTatViajeros', 'tat viajeros': 'precioTatViajeros', viajeros: 'precioTatViajeros',
+  precioentresede: 'precioEntreSede', 'entre sede': 'precioEntreSede', entresede: 'precioEntreSede',
+  stock: 'stock', existencia: 'stock', existencias: 'stock', cantidad: 'stock', saldo: 'stock',
+  stockminimo: 'stockMinimo', 'stock minimo': 'stockMinimo', minimo: 'stockMinimo',
+};
+
+const DIA_NUM: Record<string, number> = {
+  lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 7,
+};
+const NUMERICAS = ['precioCompra', 'precioVenta', 'precioGeneral', 'precioMayorista', 'precioTat', 'precioDroguerias', 'precioTatViajeros', 'precioEntreSede', 'iva', 'stock', 'stockMinimo', 'lat', 'lng'];
 
 export function ImportarPage() {
   const [tipo, setTipo] = useState<Tipo>('clientes');
@@ -15,6 +64,7 @@ export function ImportarPage() {
   const [resultado, setResultado] = useState('');
   const [error, setError] = useState('');
   const [subiendo, setSubiendo] = useState(false);
+  const [asignarCodigo, setAsignarCodigo] = useState(false);
 
   const leerArchivo = async (archivo: File) => {
     setError(''); setResultado('');
@@ -23,32 +73,80 @@ export function ImportarPage() {
     const hoja = libro.Sheets[libro.SheetNames[0]];
     const datos = XLSX.utils.sheet_to_json<any>(hoja, { defval: undefined });
 
-    // Normalizar: trim de strings y conversión numérica donde aplica
+    // Normalizar: mapear encabezados (alias en español), trim y conversión numérica
     const limpias = datos.map(f => {
       const fila: any = {};
       for (const [k, v] of Object.entries(f)) {
-        const clave = String(k).trim();
-        if (v === undefined || v === '') continue;
-        fila[clave] = ['precioCompra', 'precioVenta', 'stock', 'stockMinimo', 'diaVisita', 'lat', 'lng']
-          .includes(clave) ? Number(v) : String(v).trim();
+        const clave = ALIAS[normHeader(k)] ?? String(k).trim();
+        if (v === undefined || v === null || String(v).trim() === '') continue;
+        if (clave === 'diaVisita') {
+          const txt = normHeader(String(v));
+          fila.diaVisita = DIA_NUM[txt] ?? (Number(v) || undefined);
+        } else if (NUMERICAS.includes(clave)) {
+          fila[clave] = Number(v);
+        } else {
+          fila[clave] = String(v).trim();
+        }
       }
       return fila;
-    }).filter(f => f.nombre);
+    }).filter(f => tipo === 'listas' ? (f.nit && f.listaPrecio) : f.nombre);
 
-    if (!limpias.length) return setError('No se encontraron filas válidas. La primera fila debe tener los nombres de columna.');
-    setFilas(limpias);
+    let finales = limpias;
+    if (tipo === 'listas') {
+      // Un cliente puede aparecer muchas veces: deduplicamos por NIT y nos
+      // quedamos con la lista de precio más frecuente.
+      const conteo = new Map<string, Map<string, number>>();
+      const tip = new Map<string, string>();
+      for (const f of limpias) {
+        const nit = String(f.nit);
+        if (!conteo.has(nit)) conteo.set(nit, new Map());
+        const c = conteo.get(nit)!;
+        const l = String(f.listaPrecio);
+        c.set(l, (c.get(l) ?? 0) + 1);
+        if (f.tipologia) tip.set(nit, String(f.tipologia));
+      }
+      finales = [...conteo].map(([nit, c]) => {
+        const lista = [...c].sort((a, b) => b[1] - a[1])[0][0];
+        const row: any = { nit, listaPrecio: lista };
+        if (tip.has(nit)) row.tipologia = tip.get(nit);
+        return row;
+      });
+    }
+
+    if (!finales.length) return setError('No se encontraron filas válidas. La primera fila debe tener los nombres de columna.');
+    setFilas(finales);
   };
 
   const subir = async () => {
     setSubiendo(true); setError('');
     try {
-      const r = tipo === 'clientes'
-        ? await importarApi.clientes(filas)
-        : await importarApi.productos(filas);
-      setResultado(`✅ ${r.insertados} fila(s) importada(s)${'omitidos' in r && r.omitidos ? ` · ${r.omitidos} omitida(s) por código duplicado` : ''}`);
+      if (tipo === 'listas') {
+        const r = await importarApi.listasCliente(filas);
+        setResultado(`✅ ${r.actualizados} cliente(s) con lista asignada${r.invalidas ? ` · ${r.invalidas} lista(s) no reconocida(s)` : ''}`);
+        setFilas([]); setSubiendo(false);
+        return;
+      }
+    } catch (e: any) {
+      setError(e.message); setSubiendo(false); return;
+    }
+    // El backend acepta hasta 2.000 por lote; subimos en bloques para soportar
+    // archivos grandes (miles de clientes) sin reventar el límite.
+    const LOTE = 1000;
+    let insertados = 0, omitidos = 0;
+    try {
+      for (let i = 0; i < filas.length; i += LOTE) {
+        const bloque = filas.slice(i, i + LOTE);
+        const r: { insertados: number; omitidos?: number } = tipo === 'clientes'
+          ? await importarApi.clientes(bloque, asignarCodigo)
+          : await importarApi.productos(bloque);
+        insertados += r.insertados;
+        if ('omitidos' in r && r.omitidos) omitidos += r.omitidos;
+        setResultado(`Importando… ${Math.min(i + LOTE, filas.length)} / ${filas.length}`);
+      }
+      setResultado(`✅ ${insertados} fila(s) importada(s)${omitidos ? ` · ${omitidos} omitida(s) por código duplicado` : ''}`);
       setFilas([]);
     } catch (e: any) {
-      setError(e.message);
+      setError(`${e.message} (importadas ${insertados} antes del error)`);
     } finally { setSubiendo(false); }
   };
 
@@ -63,10 +161,10 @@ export function ImportarPage() {
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', gap: 6 }}>
-        {(['clientes', 'productos'] as Tipo[]).map(t => (
-          <button key={t} className={`btn ${tipo === t ? '' : 'btn-ghost'}`} style={{ flex: 1 }}
+        {(['clientes', 'productos', 'listas'] as Tipo[]).map(t => (
+          <button key={t} className={`btn ${tipo === t ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 13 }}
             onClick={() => { setTipo(t); setFilas([]); setResultado(''); }}>
-            {t === 'clientes' ? '👥 Clientes' : '📦 Productos'}
+            {t === 'clientes' ? '👥 Clientes' : t === 'productos' ? '📦 Productos' : '🏷️ Listas'}
           </button>
         ))}
       </div>
@@ -82,6 +180,17 @@ export function ImportarPage() {
               onChange={e => e.target.files?.[0] && leerArchivo(e.target.files[0])} />
           </label>
         </div>
+        {tipo === 'clientes' && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
+            <input type="checkbox" checked={asignarCodigo} onChange={e => setAsignarCodigo(e.target.checked)}
+              style={{ width: 'auto' }} />
+            <span>Asignar código del sistema (VMX) a estos clientes
+              <br /><span className="muted" style={{ fontSize: 11 }}>
+                Actívalo para el rutero de <b>familia</b>. Déjalo apagado para <b>surtimax</b> (su código queda vacío y se asigna luego).
+              </span>
+            </span>
+          </label>
+        )}
       </div>
 
       {filas.length > 0 && (
@@ -107,7 +216,7 @@ export function ImportarPage() {
       )}
 
       {resultado && <div className="card" style={{ borderColor: 'var(--green)', color: 'var(--green)', textAlign: 'center' }}>{resultado}</div>}
-      {error && <div className="error-box">{error}</div>}
+      {error && <div className="card" style={{ borderColor: 'var(--red)', color: 'var(--red)', textAlign: 'center' }}>{error}</div>}
     </div>
   );
 }

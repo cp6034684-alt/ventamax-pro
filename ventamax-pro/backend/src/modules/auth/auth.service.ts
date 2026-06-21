@@ -18,6 +18,6 @@ export async function login(usuario: string, pin: string) {
 
   return {
     token,
-    usuario: { id: u.id, nombre: u.nombre, rol: u.rol, zona: u.zona },
+    usuario: { id: u.id, nombre: u.nombre, rol: u.rol, zona: u.zona, listasPrecios: u.listasPrecios },
   };
 }

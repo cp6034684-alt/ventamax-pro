@@ -23,7 +23,7 @@ authRouter.get('/yo', requiereAuth, async (req, res, next) => {
   try {
     const u = await db.usuario.findUnique({
       where: { id: req.usuario!.id },
-      select: { id: true, nombre: true, usuario: true, rol: true, zona: true, creadoEn: true },
+      select: { id: true, nombre: true, usuario: true, rol: true, zona: true, listasPrecios: true, creadoEn: true },
     });
     res.json(u);
   } catch (e) { next(e); }

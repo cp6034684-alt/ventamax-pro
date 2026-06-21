@@ -32,8 +32,21 @@ export function ProductosPage() {
       nombre: String(fd.get('nombre')),
       codigo: String(fd.get('codigo') || '') || undefined,
       categoria: String(fd.get('categoria') || '') || undefined,
+      marca: String(fd.get('marca') || '') || undefined,
+      linea: String(fd.get('linea') || '') || undefined,
+      segmento: String(fd.get('segmento') || '') || undefined,
+      subsegmento: String(fd.get('subsegmento') || '') || undefined,
+      unidad: String(fd.get('unidad') || '') || undefined,
+      iva: Number(fd.get('iva') || 0) || undefined,
       precioCompra: Number(fd.get('precioCompra') || 0),
-      precioVenta: Number(fd.get('precioVenta')),
+      precioGeneral: Number(fd.get('precioGeneral') || 0) || undefined,
+      precioMayorista: Number(fd.get('precioMayorista') || 0) || undefined,
+      precioTat: Number(fd.get('precioTat') || 0) || undefined,
+      precioDroguerias: Number(fd.get('precioDroguerias') || 0) || undefined,
+      precioTatViajeros: Number(fd.get('precioTatViajeros') || 0) || undefined,
+      precioEntreSede: Number(fd.get('precioEntreSede') || 0) || undefined,
+      // Precio por defecto: el que pongan, o el de la lista TAT
+      precioVenta: Number(fd.get('precioVenta') || 0) || Number(fd.get('precioTat') || 0) || 0,
       stockMinimo: Number(fd.get('stockMinimo') || 0),
     };
     if (!editando) datos.stock = Number(fd.get('stock') || 0);
@@ -53,12 +66,29 @@ export function ProductosPage() {
           <input name="nombre" placeholder="Nombre *" defaultValue={editando?.nombre} required />
           <div style={{ display: 'flex', gap: 8 }}>
             <input name="codigo" placeholder="Código / SKU" defaultValue={editando?.codigo} />
+            <input name="marca" placeholder="Marca" defaultValue={editando?.marca ?? ''} />
             <input name="categoria" placeholder="Categoría" defaultValue={editando?.categoria} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input name="precioCompra" type="number" placeholder="Precio compra" defaultValue={editando?.precioCompra} min={0} />
-            <input name="precioVenta" type="number" placeholder="Precio venta *" defaultValue={editando?.precioVenta} required min={0} />
+            <input name="linea" placeholder="Línea" defaultValue={editando?.linea ?? ''} />
+            <input name="segmento" placeholder="Segmento" defaultValue={editando?.segmento ?? ''} />
+            <input name="subsegmento" placeholder="Subsegmento" defaultValue={editando?.subsegmento ?? ''} />
           </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input name="unidad" placeholder="Unidad" defaultValue={editando?.unidad} />
+            <input name="iva" type="number" placeholder="% IVA" defaultValue={editando?.iva} min={0} max={100} style={{ maxWidth: 110 }} />
+          </div>
+          <input name="precioCompra" type="number" placeholder="Costo (precio compra)" defaultValue={editando?.precioCompra} min={0} />
+          <div className="muted" style={{ fontSize: 11, fontWeight: 700 }}>Listas de precio</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input name="precioGeneral" type="number" placeholder="General" defaultValue={editando?.precioGeneral} min={0} />
+            <input name="precioMayorista" type="number" placeholder="Mayorista" defaultValue={editando?.precioMayorista} min={0} />
+            <input name="precioTat" type="number" placeholder="TAT" defaultValue={editando?.precioTat} min={0} />
+            <input name="precioDroguerias" type="number" placeholder="Droguerías" defaultValue={editando?.precioDroguerias} min={0} />
+            <input name="precioTatViajeros" type="number" placeholder="TAT Viajeros" defaultValue={editando?.precioTatViajeros} min={0} />
+            <input name="precioEntreSede" type="number" placeholder="Entre Sede" defaultValue={editando?.precioEntreSede} min={0} />
+          </div>
+          <input name="precioVenta" type="number" placeholder="Precio por defecto (si lo dejas vacío usa TAT)" defaultValue={editando?.precioVenta} min={0} />
           <div style={{ display: 'flex', gap: 8 }}>
             {!editando && <input name="stock" type="number" placeholder="Stock inicial" min={0} />}
             <input name="stockMinimo" type="number" placeholder="Stock mínimo" defaultValue={editando?.stockMinimo} min={0} />
@@ -73,7 +103,10 @@ export function ProductosPage() {
         <div key={p.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px' }}>
           <div style={{ flex: 1 }}>
             <strong style={{ fontSize: 14 }}>{p.nombre}</strong>
-            <div className="muted" style={{ fontSize: 12 }}>{p.categoria ?? 'Sin categoría'}{p.codigo ? ` · ${p.codigo}` : ''}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{p.categoria ?? 'Sin categoría'}{p.codigo ? ` · ${p.codigo}` : ''}{p.unidad ? ` · ${p.unidad}` : ''}</div>
+            <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>
+              Gen {fmtMoneda(p.precioGeneral)} · May {fmtMoneda(p.precioMayorista)} · TAT {fmtMoneda(p.precioTat)} · Drog {fmtMoneda(p.precioDroguerias)}
+            </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div className="mono accent" style={{ fontSize: 14 }}>{fmtMoneda(p.precioVenta)}</div>

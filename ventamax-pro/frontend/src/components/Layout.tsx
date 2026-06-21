@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { presenciaApi } from '../api/servicios';
 import type { Rol } from '../api/tipos';
 
 interface NavItem { ruta: string; icono: string; etiqueta: string; }
@@ -11,6 +13,7 @@ const NAV_POR_ROL: Record<Rol, NavItem[]> = {
     { ruta: '/venta', icono: '🧾', etiqueta: 'VENDER' },
     { ruta: '/clientes', icono: '👥', etiqueta: 'CLIENTES' },
     { ruta: '/mapa', icono: '🗺', etiqueta: 'MAPA' },
+    { ruta: '/indicadores', icono: '📈', etiqueta: 'MÉTRICAS' },
     { ruta: '/mas', icono: '☰', etiqueta: 'MÁS' },
   ],
   ENTREGADOR: [
@@ -19,17 +22,27 @@ const NAV_POR_ROL: Record<Rol, NavItem[]> = {
     { ruta: '/mapa', icono: '🗺', etiqueta: 'MAPA' },
     { ruta: '/perfil', icono: '⚙️', etiqueta: 'PERFIL' },
   ],
-  ADMIN: [
+  SUPERVISOR: [
     { ruta: '/', icono: '📊', etiqueta: 'INICIO' },
     { ruta: '/venta', icono: '🧾', etiqueta: 'VENDER' },
     { ruta: '/clientes', icono: '👥', etiqueta: 'CLIENTES' },
+    { ruta: '/rastreo', icono: '📍', etiqueta: 'RASTREO' },
+    { ruta: '/reportes', icono: '📈', etiqueta: 'REPORTES' },
+    { ruta: '/mas', icono: '☰', etiqueta: 'MÁS' },
+  ],
+  ADMIN: [
+    { ruta: '/', icono: '📊', etiqueta: 'INICIO' },
+    { ruta: '/clientes', icono: '👥', etiqueta: 'CLIENTES' },
+    { ruta: '/rastreo', icono: '📍', etiqueta: 'RASTREO' },
+    { ruta: '/mapa', icono: '🗺', etiqueta: 'MAPA' },
     { ruta: '/reportes', icono: '📈', etiqueta: 'REPORTES' },
     { ruta: '/mas', icono: '☰', etiqueta: 'MÁS' },
   ],
   COADMIN: [
     { ruta: '/', icono: '📊', etiqueta: 'INICIO' },
-    { ruta: '/venta', icono: '🧾', etiqueta: 'VENDER' },
     { ruta: '/clientes', icono: '👥', etiqueta: 'CLIENTES' },
+    { ruta: '/rastreo', icono: '📍', etiqueta: 'RASTREO' },
+    { ruta: '/mapa', icono: '🗺', etiqueta: 'MAPA' },
     { ruta: '/reportes', icono: '📈', etiqueta: 'REPORTES' },
     { ruta: '/mas', icono: '☰', etiqueta: 'MÁS' },
   ],
@@ -40,7 +53,7 @@ const TITULOS: Record<string, string> = {
   '/inventario': 'Inventario', '/proveedores': 'Proveedores', '/mapa': 'Mapa de rutas',
   '/entregas': 'Entregas', '/reportes': 'Reportes', '/importar': 'Importar Excel',
   '/gastos': 'Gastos', '/usuarios': 'Usuarios', '/perfil': 'Mi perfil',
-  '/facturas': 'Facturas', '/mas': 'Más opciones',
+  '/facturas': 'Facturas', '/mas': 'Más opciones', '/rastreo': 'Rastreo', '/indicadores': 'Indicadores',
 };
 
 const navStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties => ({
@@ -53,6 +66,31 @@ export function Layout() {
   const { usuario } = useAuth();
   const { pathname } = useLocation();
   const items = usuario ? NAV_POR_ROL[usuario.rol] : [];
+
+  // Heartbeat de presencia: avisa al servidor que este usuario sigue
+  // activo cada 20s mientras la sesión está abierta. Alimenta la barra
+  // "En línea" del dashboard y, para roles de campo, el rastreo:
+  // se envía el GPS en cada latido (el servidor guarda el recorrido).
+  useEffect(() => {
+    if (!usuario) return;
+    const coords: { actual?: { lat: number; lng: number } } = {};
+    const esCampo = usuario.rol === 'VENDEDOR' || usuario.rol === 'SUPERVISOR';
+    let watchId: number | undefined;
+    if (esCampo && 'geolocation' in navigator) {
+      watchId = navigator.geolocation.watchPosition(
+        pos => { coords.actual = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
+        () => {}, // sin permiso de GPS: seguimos marcando presencia sin ubicación
+        { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
+      );
+    }
+    const latir = () => { presenciaApi.latido(coords.actual).catch(() => {}); };
+    latir();
+    const t = setInterval(latir, 20_000);
+    return () => {
+      clearInterval(t);
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [usuario]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

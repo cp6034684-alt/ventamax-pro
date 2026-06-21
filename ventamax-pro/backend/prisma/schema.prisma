@@ -19,6 +19,7 @@ datasource db {
 enum Rol {
   ADMIN
   COADMIN
+  SUPERVISOR
   VENDEDOR
   ENTREGADOR
 }
@@ -31,25 +32,56 @@ model Usuario {
   rol          Rol       @default(VENDEDOR)
   activo       Boolean   @default(true)
   zona         String? // zona/ruta asignada al vendedor TAT
+  documento    String? // cédula / documento del vendedor (sale en el reporte)
+  ciudad       String? // ciudad base del usuario
+  meta         Int       @default(10000000) // meta de venta mensual (para el % de meta del dashboard)
+  listasPrecios String[] @default([]) // listas de precio que puede usar
   creadoEn     DateTime  @default(now())
   actualizadoEn DateTime @updatedAt
 
   facturas  Factura[]  @relation("vendedor")
   entregas  Factura[]  @relation("entregador")
   gastos    Gasto[]
+  tareas    Tarea[]    @relation("tareasEntregador")
 
   @@index([rol, activo])
   @@map("usuarios")
 }
 
+// ── Tarea de entrega (programación): agrupa pedidos asignados a un entregador ──
+model Tarea {
+  id           String   @id @default(uuid())
+  nombre       String
+  entregadorId String
+  fecha        DateTime @default(now())
+  estado       String   @default("activa") // activa | completada
+  creadoEn     DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  entregador Usuario   @relation("tareasEntregador", fields: [entregadorId], references: [id])
+  facturas   Factura[]
+
+  @@index([entregadorId, estado])
+  @@map("tareas_entrega")
+}
+
 // ── Clientes (tiendas de la ruta TAT) ────────────────────────
 model Cliente {
   id            String    @id @default(uuid())
+  codigo        Int?      @unique // código del sistema (VMX-####); puede quedar vacío y asignarse luego
   nombre        String // nombre del negocio
+  razonSocial   String? // nombre legal del cliente (puede diferir del negocio)
   contacto      String? // nombre del tendero
   telefono      String?
   direccion     String?
   barrio        String?
+  ciudad        String?
+  correo        String? // email para facturación electrónica (DIAN)
+  nit           String? // NIT/CC del cliente
+  zona          String? // zona/ruta del export
+  segmento      String? // segmento comercial (TIENDA, etc.)
+  tipologia     String? // tipología del cliente (define la lista de precio)
+  listaPrecio   String? // lista de precio asignada al cliente (según tipología)
   lat           Float? // para el mapa de rutas
   lng           Float?
   diaVisita     Int? // 1=lunes … 7=domingo
@@ -64,7 +96,66 @@ model Cliente {
   @@index([nombre])
   @@index([diaVisita, activo])
   @@index([barrio])
+  @@index([ciudad])
   @@map("clientes")
+}
+
+// ── Visitas sin compra (causal de no compra) ─────────────────
+// Registra cuando un vendedor visitó un cliente pero NO compró.
+// Sirve para sacarlo de "pendientes por visitar" del día en el mapa.
+model Visita {
+  id         String   @id @default(uuid())
+  clienteId  String
+  vendedorId String
+  causal     String // motivo de no compra
+  notas      String?
+  creadoEn   DateTime @default(now())
+
+  @@index([clienteId, creadoEn])
+  @@index([vendedorId, creadoEn])
+  @@map("visitas")
+}
+
+// ── Regiones y bodegas (la empresa opera en varias regiones) ──
+model Region {
+  id       String   @id @default(uuid())
+  nombre   String   @unique
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now())
+
+  bodegas  Bodega[]
+
+  @@map("regiones")
+}
+
+model Bodega {
+  id        String   @id @default(uuid())
+  nombre    String
+  codigo    String?
+  ciudad    String?
+  direccion String?
+  regionId  String?
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  region    Region?  @relation(fields: [regionId], references: [id])
+
+  @@index([regionId])
+  @@map("bodegas")
+}
+
+// ── Rastreo: migas de pan del recorrido del vendedor en campo ──
+// Se guarda un punto solo cuando el vendedor se desplaza (≥30m), para
+// reconstruir su trayecto del día. La ubicación en vivo va por presencia.
+model Ubicacion {
+  id         String   @id @default(uuid())
+  vendedorId String
+  lat        Float
+  lng        Float
+  creadoEn   DateTime @default(now())
+
+  @@index([vendedorId, creadoEn])
+  @@map("ubicaciones")
 }
 
 // ── Productos e inventario ───────────────────────────────────
@@ -72,9 +163,22 @@ model Producto {
   id            String   @id @default(uuid())
   codigo        String?  @unique // código de barras / SKU
   nombre        String
-  categoria     String?
-  precioCompra  Decimal  @default(0) @db.Decimal(14, 2)
-  precioVenta   Decimal  @default(0) @db.Decimal(14, 2)
+  categoria     String? // categoría
+  marca         String? // marca del producto
+  linea         String? // línea
+  segmento      String? // segmento
+  subsegmento   String? // subsegmento
+  unidad        String? // unidad o embalaje
+  iva           Decimal  @default(0) @db.Decimal(5, 2) // % de IVA del producto (0 = exento)
+  precioCompra  Decimal  @default(0) @db.Decimal(14, 2) // costo
+  precioVenta   Decimal  @default(0) @db.Decimal(14, 2) // precio por defecto (= lista TAT)
+  // Listas de precio: el vendedor cobra con una de estas según su asignación.
+  precioGeneral     Decimal @default(0) @db.Decimal(14, 2)
+  precioMayorista   Decimal @default(0) @db.Decimal(14, 2)
+  precioTat         Decimal @default(0) @db.Decimal(14, 2)
+  precioDroguerias  Decimal @default(0) @db.Decimal(14, 2)
+  precioTatViajeros Decimal @default(0) @db.Decimal(14, 2)
+  precioEntreSede   Decimal @default(0) @db.Decimal(14, 2)
   stock         Int      @default(0)
   stockMinimo   Int      @default(0)
   activo        Boolean  @default(true)
@@ -110,12 +214,14 @@ enum EstadoFactura {
   ENTREGADA
   PAGADA
   CREDITO     // entregada, pago a crédito
+  DEVUELTA    // no entregada / devuelta totalmente (fuera de la cola)
   ANULADA
 }
 
 model Factura {
   id           String        @id @default(uuid())
   consecutivo  Int           @default(autoincrement()) // número visible de factura
+  tipoDoc      String        @default("VENTA") // VENTA | DEVOLUCION (las devoluciones llevan cantidades negativas)
   clienteId    String
   vendedorId   String
   entregadorId String?
@@ -125,7 +231,17 @@ model Factura {
   total        Decimal       @db.Decimal(14, 2)
   pagado       Decimal       @default(0) @db.Decimal(14, 2)
   metodoPago   String? // EFECTIVO | TRANSFERENCIA | CREDITO
+  listaPrecio  String? // lista de precio usada (GENERAL/MAYORISTA/TAT/DROGUERIAS)
   notas        String?
+  // Devolución: la venta origen guarda el resumen; las devoluciones físicas
+  // se registran como documentos DEVOLUCION (negativos) enlazados por facturaOrigenId.
+  devuelta          String   @default("NO") // NO | PARCIAL | TOTAL
+  causal            String? // motivo de la devolución
+  obsDevolucion     String? // observación de la devolución
+  montoDevuelto     Decimal  @default(0) @db.Decimal(14, 2)
+  revivirSolicitado Boolean  @default(false) // el vendedor pidió revivir un pedido devuelto
+  facturaOrigenId   String? // si es DEVOLUCION, apunta a la venta original
+  tareaId           String? // tarea de entrega (programación) a la que pertenece el pedido
   // Soporte offline: el cliente genera un UUID local; si reintenta
   // el envío, este campo evita duplicar la venta.
   idLocal      String?       @unique
@@ -137,12 +253,17 @@ model Factura {
   vendedor   Usuario      @relation("vendedor", fields: [vendedorId], references: [id])
   entregador Usuario?     @relation("entregador", fields: [entregadorId], references: [id])
   items      FacturaItem[]
+  facturaOrigen Factura?  @relation("origenDevol", fields: [facturaOrigenId], references: [id])
+  devoluciones  Factura[] @relation("origenDevol")
+  tarea      Tarea?       @relation(fields: [tareaId], references: [id])
 
   // Índices pensados para las consultas reales de la app:
   @@index([vendedorId, creadoEn(sort: Desc)]) // "mis ventas de hoy/semana"
   @@index([clienteId, creadoEn(sort: Desc)])  // historial del cliente
   @@index([estado, creadoEn])                 // cola del entregador
   @@index([creadoEn])                         // reportes por rango de fechas
+  @@index([facturaOrigenId])
+  @@index([tareaId])
   @@map("facturas")
 }
 

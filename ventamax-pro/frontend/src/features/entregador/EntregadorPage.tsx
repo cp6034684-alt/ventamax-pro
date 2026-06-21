@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { facturasApi } from '../../api/servicios';
 import { Mapa } from '../../components/Mapa';
+import { Recibo } from '../../components/Recibo';
+import { DevolucionModal } from '../../components/DevolucionModal';
 import { fmtMoneda, fmtFecha } from '../../api/formato';
 import type { FacturaEntrega } from '../../api/tipos';
 
 export function EntregadorPage() {
   const [vista, setVista] = useState<'lista' | 'mapa'>('lista');
+  const [recibo, setRecibo] = useState<FacturaEntrega | null>(null);
+  const [devolver, setDevolver] = useState<FacturaEntrega | null>(null);
   const qc = useQueryClient();
 
   const { data: cola, isLoading } = useQuery({
@@ -67,17 +71,19 @@ export function EntregadorPage() {
               </div>
             ))}
           </details>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {f.cliente.lat && f.cliente.lng && (
-              <a className="btn btn-ghost" style={{ flex: 1, textAlign: 'center', textDecoration: 'none', fontSize: 13 }}
+              <a className="btn btn-ghost" style={{ flex: '1 1 30%', textAlign: 'center', textDecoration: 'none', fontSize: 13 }}
                 href={`https://www.google.com/maps/dir/?api=1&destination=${f.cliente.lat},${f.cliente.lng}`}
                 target="_blank" rel="noreferrer">🧭 Cómo llegar</a>
             )}
             {f.cliente.telefono && (
-              <a className="btn btn-ghost" style={{ flex: 1, textAlign: 'center', textDecoration: 'none', fontSize: 13 }}
+              <a className="btn btn-ghost" style={{ flex: '1 1 30%', textAlign: 'center', textDecoration: 'none', fontSize: 13 }}
                 href={`tel:${f.cliente.telefono}`}>📞 Llamar</a>
             )}
-            <button className="btn" style={{ flex: 1, fontSize: 13 }}
+            <button className="btn btn-ghost" style={{ flex: '1 1 30%', fontSize: 13 }} onClick={() => setRecibo(f)}>🧾 Recibo</button>
+            <button className="btn btn-ghost" style={{ flex: '1 1 30%', fontSize: 13, color: 'var(--red)' }} onClick={() => setDevolver(f)}>↩️ Devolución</button>
+            <button className="btn" style={{ flex: '1 1 30%', fontSize: 13 }}
               disabled={entregar.isPending}
               onClick={() => entregar.mutate(f)}>
               ✓ Entregada
@@ -85,6 +91,9 @@ export function EntregadorPage() {
           </div>
         </div>
       ))}
+
+      {recibo && <Recibo factura={recibo} onCerrar={() => setRecibo(null)} />}
+      {devolver && <DevolucionModal factura={devolver} onCerrar={() => setDevolver(null)} />}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { env } from '../config/env';
 
 export interface UsuarioToken {
   id: string;
-  rol: 'ADMIN' | 'COADMIN' | 'VENDEDOR' | 'ENTREGADOR';
+  rol: 'ADMIN' | 'COADMIN' | 'SUPERVISOR' | 'VENDEDOR' | 'ENTREGADOR';
   nombre: string;
 }
 

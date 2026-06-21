@@ -5,8 +5,8 @@ import { db } from '../../config/db';
 import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
 import { leerPaginacion, respuestaPaginada } from '../../utils/pagination';
-import { facturaCrearSchema, facturaEstadoSchema } from './facturas.schemas';
-import { crearFactura } from './facturas.service';
+import { facturaCrearSchema, facturaEstadoSchema, devolucionCrearSchema, devolverSchema, facturaEditarSchema } from './facturas.schemas';
+import { crearFactura, crearDevolucion, registrarDevolucion, revivirEntrega, editarFactura } from './facturas.service';
 
 const abonoSchema = z.object({ monto: z.number().positive() });
 
@@ -22,6 +22,23 @@ facturasRouter.get('/cola-entrega', async (_req, res, next) => {
       take: 200,
       include: {
         cliente: { select: { id: true, nombre: true, direccion: true, barrio: true, telefono: true, lat: true, lng: true } },
+        vendedor: { select: { nombre: true } },
+        items: { include: { producto: { select: { nombre: true } } } },
+      },
+    });
+    res.json(datos);
+  } catch (e) { next(e); }
+});
+
+// GET /api/facturas/solicitudes-revivir — pedidos devueltos con solicitud de revivir
+facturasRouter.get('/solicitudes-revivir', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR', 'ENTREGADOR'), async (_req, res, next) => {
+  try {
+    const datos = await db.factura.findMany({
+      where: ({ revivirSolicitado: true } as any),
+      orderBy: { actualizadoEn: 'desc' },
+      take: 100,
+      include: {
+        cliente: { select: { nombre: true, barrio: true, direccion: true } },
         vendedor: { select: { nombre: true } },
         items: { include: { producto: { select: { nombre: true } } } },
       },
@@ -59,7 +76,7 @@ facturasRouter.get('/', async (req, res, next) => {
         where, skip, take,
         orderBy: { creadoEn: 'desc' },
         include: {
-          cliente: { select: { nombre: true, barrio: true, telefono: true } },
+          cliente: { select: { nombre: true, direccion: true, barrio: true, ciudad: true, zona: true, telefono: true } },
           vendedor: { select: { nombre: true } },
           items: { include: { producto: { select: { nombre: true } } } },
         },
@@ -71,17 +88,45 @@ facturasRouter.get('/', async (req, res, next) => {
 });
 
 // POST /api/facturas — crear venta (vendedores y admins)
-facturasRouter.post('/', requiereRol('VENDEDOR', 'ADMIN', 'COADMIN'), validarBody(facturaCrearSchema), async (req, res, next) => {
+facturasRouter.post('/', requiereRol('VENDEDOR', 'SUPERVISOR', 'ADMIN', 'COADMIN'), validarBody(facturaCrearSchema), async (req, res, next) => {
   try {
     const { factura, duplicada } = await crearFactura(req.usuario!.id, req.body);
     res.status(duplicada ? 200 : 201).json(factura);
   } catch (e) { next(e); }
 });
 
+// POST /api/facturas/devolucion — registrar una devolución (nota crédito)
+facturasRouter.post('/devolucion', requiereRol('VENDEDOR', 'SUPERVISOR', 'ADMIN', 'COADMIN'), validarBody(devolucionCrearSchema), async (req, res, next) => {
+  try {
+    const f = await crearDevolucion(req.usuario!.id, req.body);
+    res.status(201).json(f);
+  } catch (e) { next(e); }
+});
+
+// POST /api/facturas/:id/devolver — devolución TOTAL/PARCIAL sobre una venta (entregador/admin)
+facturasRouter.post('/:id/devolver', requiereRol('ENTREGADOR', 'SUPERVISOR', 'ADMIN', 'COADMIN'), validarBody(devolverSchema), async (req, res, next) => {
+  try {
+    res.json(await registrarDevolucion(req.usuario!.id, req.params.id, req.body));
+  } catch (e) { next(e); }
+});
+
+// POST /api/facturas/:id/revivir — revivir (admin/supervisor/entregador) o solicitar (vendedor)
+facturasRouter.post('/:id/revivir', async (req, res, next) => {
+  try {
+    res.json(await revivirEntrega(req.usuario!.rol, req.params.id));
+  } catch (e) { next(e); }
+});
+
+// PUT /api/facturas/:id — editar un pedido pendiente (vendedor dueño o gestión)
+facturasRouter.put('/:id', requiereRol('VENDEDOR', 'SUPERVISOR', 'ADMIN', 'COADMIN'), validarBody(facturaEditarSchema), async (req, res, next) => {
+  try {
+    res.json(await editarFactura({ id: req.usuario!.id, rol: req.usuario!.rol }, req.params.id, req.body));
+  } catch (e) { next(e); }
+});
+
 // PATCH /api/facturas/:id/estado — entregar, marcar pagada, anular
 facturasRouter.patch('/:id/estado', validarBody(facturaEstadoSchema), async (req, res, next) => {
   try {
-    // Anular repone el stock de los productos (transaccional)
     if (req.body.estado === 'ANULADA') {
       const anulada = await db.$transaction(async (tx: Prisma.TransactionClient) => {
         const f = await tx.factura.findUnique({ where: { id: req.params.id }, include: { items: true } });
@@ -94,7 +139,6 @@ facturasRouter.patch('/:id/estado', validarBody(facturaEstadoSchema), async (req
             data: { productoId: i.productoId, tipo: 'DEVOLUCION', cantidad: i.cantidad, motivo: `Anulación factura #${f.consecutivo}`, facturaId: f.id },
           });
         }
-        // Si era crédito, descontar el saldo no pagado de la cartera del cliente
         const saldo = Number(f.total) - Number(f.pagado);
         if (f.estado === 'CREDITO' && saldo > 0) {
           await tx.cliente.update({ where: { id: f.clienteId }, data: { saldoPendiente: { decrement: saldo } } });

@@ -22,6 +22,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-cambia-este-secreto-en-produccion}
       CORS_ORIGIN: http://localhost:8080,http://localhost:5173
       PORT: 4000
+      TZ: America/Bogota
     depends_on:
       db:
         condition: service_healthy
