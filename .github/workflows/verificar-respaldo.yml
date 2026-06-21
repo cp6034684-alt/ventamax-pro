@@ -1,0 +1,31 @@
+name: Verificar respaldo (manual)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar cliente de PostgreSQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Contar datos + probar cifrado/descifrado
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+        run: |
+          echo "==================== CONTEO EN PRODUCCION ===================="
+          psql "$DATABASE_URL" -c "SELECT 'clientes' AS tabla, count(*) FROM clientes UNION ALL SELECT 'productos', count(*) FROM productos UNION ALL SELECT 'usuarios', count(*) FROM usuarios ORDER BY tabla;"
+          echo
+          echo "============ RESPALDO DE PRUEBA: CIFRAR Y DESCIFRAR ============"
+          pg_dump "$DATABASE_URL" --no-owner --no-privileges | gzip \
+            | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"$BACKUP_PASSWORD" -out prueba.enc
+          echo "Cifrado OK. Tamano del archivo cifrado:"; du -h prueba.enc
+          openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$BACKUP_PASSWORD" -in prueba.enc | gunzip > prueba.sql
+          echo "Descifrado OK. Tamano del respaldo:"; du -h prueba.sql
+          echo
+          echo "Tablas con datos dentro del respaldo:"
+          grep "^COPY public" prueba.sql | sed 's/ (.*//' | sed 's/^COPY //'
