@@ -108,13 +108,16 @@ export function FacturaDetalle({ factura, onCerrar }: { factura: Factura; onCerr
         <div className="card" style={{ padding: '8px 12px' }}>
           {factura.items.map((i, idx) => (
             <div key={idx} style={{
-              display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13,
+              display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
               padding: '6px 0', borderBottom: idx < factura.items.length - 1 ? '1px solid var(--border)' : 'none',
             }}>
-              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                📦 {i.producto?.nombre ?? 'Producto'} <span className="muted">×{Math.abs(i.cantidad)}</span>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                📦 {i.producto?.nombre ?? 'Producto'}
               </span>
-              <span className="mono" style={{ flexShrink: 0, color: esDev ? 'var(--red)' : undefined }}>{fmtMoneda(i.total)}</span>
+              <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 800, color: 'var(--accent)', background: 'rgba(0,200,255,.14)', borderRadius: 8, padding: '2px 8px' }}>
+                {Math.abs(i.cantidad)} und
+              </span>
+              <span className="mono" style={{ flexShrink: 0, minWidth: 66, textAlign: 'right', color: esDev ? 'var(--red)' : undefined }}>{fmtMoneda(i.total)}</span>
             </div>
           ))}
           <div className="muted" style={{ fontSize: 11, textAlign: 'center', paddingTop: 8, marginTop: 4, borderTop: '1px solid var(--border)' }}>
