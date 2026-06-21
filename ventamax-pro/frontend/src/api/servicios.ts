@@ -102,6 +102,7 @@ export const importarApi = {
     api<{ insertados: number }>('/importar/clientes', { method: 'POST', body: JSON.stringify({ filas, asignarCodigo }) }),
   productos: (filas: any[]) => api<{ insertados: number; omitidos: number }>('/importar/productos', { method: 'POST', body: JSON.stringify({ filas }) }),
   listasCliente: (filas: any[]) => api<{ actualizados: number; listas: number; invalidas: number }>('/importar/listas-cliente', { method: 'POST', body: JSON.stringify({ filas }) }),
+  inventario: (filas: any[]) => api<{ actualizados: number; creados: number }>('/importar/inventario', { method: 'POST', body: JSON.stringify({ filas }) }),
 };
 
 export const usuariosApi = {

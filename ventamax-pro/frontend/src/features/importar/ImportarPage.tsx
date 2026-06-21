@@ -2,12 +2,13 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { importarApi } from '../../api/servicios';
 
-type Tipo = 'clientes' | 'productos' | 'listas';
+type Tipo = 'clientes' | 'productos' | 'listas' | 'inventario';
 
 const COLUMNAS: Record<Tipo, string> = {
   clientes: 'nombre*, razonSocial, nit, tipologia, listaPrecio, contacto, telefono, correo, direccion, barrio, ciudad, zona, segmento, diaVisita (1-7), lat, lng',
   productos: 'codigo, nombre*, marca, categoria, linea, segmento, subsegmento, unidad, iva, precioCompra, precioGeneral, precioMayorista, precioTat, precioDroguerias, precioTatViajeros, precioEntreSede, stock',
   listas: 'nit, listaPrecio (tipologia opcional) — actualiza la lista de los clientes existentes por NIT',
+  inventario: 'REFERENCIA, DETALLE, MARCA, TAT, SALDO — informe de bodega: actualiza existencia y precio por referencia',
 };
 
 // El código del cliente lo genera el sistema (VMX-####), por eso no se importa.
@@ -71,7 +72,15 @@ export function ImportarPage() {
     const buffer = await archivo.arrayBuffer();
     const libro = XLSX.read(buffer);
     const hoja = libro.Sheets[libro.SheetNames[0]];
-    const datos = XLSX.utils.sheet_to_json<any>(hoja, { defval: undefined });
+    let datos: any[];
+    if (tipo === 'inventario') {
+      const aoa = XLSX.utils.sheet_to_json<any[]>(hoja, { header: 1, defval: '' });
+      const hi = aoa.findIndex(r => Array.isArray(r) && r.some(c => normHeader(String(c)) === 'referencia'));
+      if (hi < 0) return setError('No encontre la columna REFERENCIA en el archivo de bodega.');
+      datos = XLSX.utils.sheet_to_json<any>(hoja, { range: hi, defval: undefined });
+    } else {
+      datos = XLSX.utils.sheet_to_json<any>(hoja, { defval: undefined });
+    }
 
     // Normalizar: mapear encabezados (alias en español), trim y conversión numérica
     const limpias = datos.map(f => {
@@ -89,7 +98,7 @@ export function ImportarPage() {
         }
       }
       return fila;
-    }).filter(f => tipo === 'listas' ? (f.nit && f.listaPrecio) : f.nombre);
+    }).filter(f => tipo === 'listas' ? (f.nit && f.listaPrecio) : tipo === 'inventario' ? f.codigo : f.nombre);
 
     let finales = limpias;
     if (tipo === 'listas') {
@@ -131,19 +140,25 @@ export function ImportarPage() {
     }
     // El backend acepta hasta 2.000 por lote; subimos en bloques para soportar
     // archivos grandes (miles de clientes) sin reventar el límite.
-    const LOTE = 1000;
-    let insertados = 0, omitidos = 0;
+    const LOTE = tipo === 'inventario' ? 300 : 1000;
+    let insertados = 0, omitidos = 0, actualizados = 0, creados = 0;
     try {
       for (let i = 0; i < filas.length; i += LOTE) {
         const bloque = filas.slice(i, i + LOTE);
-        const r: { insertados: number; omitidos?: number } = tipo === 'clientes'
-          ? await importarApi.clientes(bloque, asignarCodigo)
-          : await importarApi.productos(bloque);
-        insertados += r.insertados;
-        if ('omitidos' in r && r.omitidos) omitidos += r.omitidos;
+        if (tipo === 'inventario') {
+          const r = await importarApi.inventario(bloque);
+          actualizados += r.actualizados; creados += r.creados;
+        } else {
+          const r: { insertados: number; omitidos?: number } = tipo === 'clientes'
+            ? await importarApi.clientes(bloque, asignarCodigo)
+            : await importarApi.productos(bloque);
+          insertados += r.insertados;
+          if ('omitidos' in r && r.omitidos) omitidos += r.omitidos;
+        }
         setResultado(`Importando… ${Math.min(i + LOTE, filas.length)} / ${filas.length}`);
       }
-      setResultado(`✅ ${insertados} fila(s) importada(s)${omitidos ? ` · ${omitidos} omitida(s) por código duplicado` : ''}`);
+      if (tipo === 'inventario') setResultado(`✅ Inventario: ${actualizados} actualizado(s), ${creados} nuevo(s)`);
+      else setResultado(`✅ ${insertados} fila(s) importada(s)${omitidos ? ` · ${omitidos} omitida(s) por código duplicado` : ''}`);
       setFilas([]);
     } catch (e: any) {
       setError(`${e.message} (importadas ${insertados} antes del error)`);
@@ -161,10 +176,10 @@ export function ImportarPage() {
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', gap: 6 }}>
-        {(['clientes', 'productos', 'listas'] as Tipo[]).map(t => (
+        {(['clientes', 'productos', 'inventario', 'listas'] as Tipo[]).map(t => (
           <button key={t} className={`btn ${tipo === t ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 13 }}
             onClick={() => { setTipo(t); setFilas([]); setResultado(''); }}>
-            {t === 'clientes' ? '👥 Clientes' : t === 'productos' ? '📦 Productos' : '🏷️ Listas'}
+            {t === 'clientes' ? '👥 Clientes' : t === 'productos' ? '📦 Productos' : t === 'inventario' ? '📥 Inventario' : '🏷️ Listas'}
           </button>
         ))}
       </div>

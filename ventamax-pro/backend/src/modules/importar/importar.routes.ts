@@ -126,3 +126,53 @@ importarRouter.post('/productos', validarBody(loteProductosSchema), async (req, 
     res.status(201).json({ insertados: r.count, omitidos: data.length - r.count });
   } catch (e) { next(e); }
 });
+
+// ── Inventario (informe de bodega) ────────────────────────────
+// Actualiza por REFERENCIA(codigo): existencia (stock) y precio TAT,
+// corrige la marca; crea los productos que no existan.
+const loteInventarioSchema = z.object({
+  filas: z.array(z.object({
+    codigo: z.string().min(1),
+    nombre: z.string().optional(),
+    marca: z.string().optional(),
+    precioTat: z.number().min(0).optional(),
+    stock: z.number().optional(),
+  })).min(1).max(2000),
+});
+
+importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req, res, next) => {
+  try {
+    const filas = (req.body.filas as any[]).map((f) => ({
+      codigo: String(f.codigo).trim(),
+      nombre: f.nombre ? String(f.nombre).trim() : undefined,
+      marca: f.marca ? String(f.marca).trim() : undefined,
+      precioTat: typeof f.precioTat === 'number' ? f.precioTat : undefined,
+      stock: typeof f.stock === 'number' ? Math.round(f.stock) : 0,
+    })).filter((f) => f.codigo);
+
+    const codigos = filas.map((f) => f.codigo);
+    const existentes = await db.producto.findMany({ where: { codigo: { in: codigos } }, select: { id: true, codigo: true } });
+    const mapa = new Map(existentes.map((p) => [p.codigo as string, p.id]));
+
+    const ops: any[] = [];
+    const nuevos: any[] = [];
+    for (const f of filas) {
+      const id = mapa.get(f.codigo);
+      if (id) {
+        const data: any = { stock: f.stock };
+        if (f.precioTat !== undefined) { data.precioTat = f.precioTat; data.precioVenta = f.precioTat; }
+        if (f.marca) data.marca = f.marca;
+        if (f.nombre) data.nombre = f.nombre;
+        ops.push(db.producto.update({ where: { id }, data }));
+      } else {
+        nuevos.push({
+          codigo: f.codigo, nombre: f.nombre || f.codigo, marca: f.marca,
+          precioTat: f.precioTat ?? 0, precioVenta: f.precioTat ?? 0, stock: f.stock,
+        });
+      }
+    }
+    if (nuevos.length) ops.push(db.producto.createMany({ data: nuevos, skipDuplicates: true }));
+    await db.$transaction(ops);
+    res.json({ actualizados: filas.length - nuevos.length, creados: nuevos.length });
+  } catch (e) { next(e); }
+});
