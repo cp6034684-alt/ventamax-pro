@@ -108,9 +108,9 @@ export const importarApi = {
 
 export const usuariosApi = {
   listar: () => api<Usuario[]>('/usuarios'),
-  crear: (d: { nombre: string; usuario: string; pin: string; rol: string; zona?: string; documento?: string; ciudad?: string; meta?: number; listasPrecios?: string[] }) =>
+  crear: (d: { nombre: string; usuario: string; pin: string; rol: string; zona?: string; documento?: string; ciudad?: string; meta?: number; listasPrecios?: string[]; regionId?: string | null }) =>
     api<Usuario>('/usuarios', { method: 'POST', body: JSON.stringify(d) }),
-  actualizar: (id: string, d: Partial<{ pin: string; activo: boolean; zona: string; documento: string; ciudad: string; meta: number; rol: string; listasPrecios: string[] }>) =>
+  actualizar: (id: string, d: Partial<{ pin: string; activo: boolean; zona: string; documento: string; ciudad: string; meta: number; rol: string; listasPrecios: string[]; regionId: string | null }>) =>
     api<Usuario>(`/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
 };
 
@@ -157,6 +157,7 @@ export const presenciaApi = {
 export const regionesApi = {
   listar: () => api<Region[]>('/regiones'),
   crear: (nombre: string) => api<Region>('/regiones', { method: 'POST', body: JSON.stringify({ nombre }) }),
+  actualizar: (id: string, d: { bodegaPrincipalId?: string | null }) => api<Region>(`/regiones/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
 };
 
 export const bodegasApi = {

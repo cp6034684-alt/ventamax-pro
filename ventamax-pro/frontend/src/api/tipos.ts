@@ -4,6 +4,7 @@ export interface Usuario {
   id: string; nombre: string; rol: Rol; zona?: string | null;
   usuario?: string; activo?: boolean; listasPrecios?: string[];
   documento?: string | null; ciudad?: string | null; meta?: number;
+  regionId?: string | null; region?: { id: string; nombre: string } | null;
 }
 
 export interface Cliente {
@@ -187,7 +188,7 @@ export interface ClienteDup {
 export interface GrupoDuplicado { nit: string; clientes: ClienteDup[]; }
 
 // ── Regiones y bodegas ──
-export interface Region { id: string; nombre: string; activo?: boolean; _count?: { bodegas: number }; }
+export interface Region { id: string; nombre: string; activo?: boolean; bodegaPrincipalId?: string | null; bodegas?: { id: string; nombre: string }[]; _count?: { bodegas: number }; }
 export interface Bodega {
   id: string; nombre: string; codigo?: string | null; ciudad?: string | null; direccion?: string | null;
   regionId?: string | null; region?: { id: string; nombre: string } | null;

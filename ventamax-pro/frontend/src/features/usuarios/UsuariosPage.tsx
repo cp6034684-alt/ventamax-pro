@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { usuariosApi } from '../../api/servicios';
+import { usuariosApi, regionesApi } from '../../api/servicios';
 import { useAuth } from '../../auth/AuthContext';
 
 const COLOR_ROL: Record<string, string> = {
@@ -15,6 +15,7 @@ export function UsuariosPage() {
   const puedeCrearAdmins = usuario?.rol === 'ADMIN' || usuario?.rol === 'COADMIN';
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['usuarios'], queryFn: usuariosApi.listar });
+  const { data: regiones } = useQuery({ queryKey: ['regiones'], queryFn: regionesApi.listar });
 
   const invalidar = () => { qc.invalidateQueries({ queryKey: ['usuarios'] }); setMostrarForm(false); };
   const crear = useMutation({ mutationFn: usuariosApi.crear, onSuccess: invalidar });
@@ -40,6 +41,7 @@ export function UsuariosPage() {
               documento: String(fd.get('documento') || '') || undefined,
               ciudad: String(fd.get('ciudad') || '') || undefined,
               meta: fd.get('meta') ? Number(fd.get('meta')) : undefined,
+              regionId: String(fd.get('regionId') || '') || undefined,
             });
           }}>
           <input name="nombre" placeholder="Nombre completo *" required />
@@ -62,6 +64,10 @@ export function UsuariosPage() {
             <input name="zona" placeholder="Zona / ruta (opcional)" style={{ flex: 1 }} />
             <input name="meta" placeholder="Meta mensual" inputMode="numeric" defaultValue={10000000} style={{ maxWidth: 150 }} />
           </div>
+          <select name="regionId" defaultValue="">
+            <option value="">Sin región asignada</option>
+            {regiones?.map(r => <option key={r.id} value={r.id}>Región: {r.nombre}</option>)}
+          </select>
           <button className="btn" disabled={crear.isPending}>{crear.isPending ? 'Creando…' : 'Crear usuario'}</button>
           {crear.isError && <div className="error-box">{(crear.error as Error).message}</div>}
         </form>
@@ -104,6 +110,13 @@ export function UsuariosPage() {
               {u.activo === false ? 'Activar' : 'Desactivar'}
             </button>
           </div>
+          {(u.rol === 'VENDEDOR' || u.region) && (
+            <select value={u.region?.id ?? ''} onChange={e => actualizar.mutate({ id: u.id, regionId: e.target.value || null })}
+              style={{ fontSize: 11, padding: '5px 8px', width: 'auto' }}>
+              <option value="">Sin región asignada</option>
+              {regiones?.map(r => <option key={r.id} value={r.id}>Región: {r.nombre}</option>)}
+            </select>
+          )}
         </div>
       ))}
     </div>

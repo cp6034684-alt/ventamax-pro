@@ -16,7 +16,7 @@ regionesRouter.get('/', async (_req, res, next) => {
     res.json(await db.region.findMany({
       where: { activo: true },
       orderBy: { nombre: 'asc' },
-      include: { _count: { select: { bodegas: true } } },
+      include: { _count: { select: { bodegas: true } }, bodegas: { select: { id: true, nombre: true }, where: { activo: true } } },
     }));
   } catch (e) { next(e); }
 });
@@ -32,6 +32,7 @@ regionesRouter.patch('/:id', requiereRol('ADMIN', 'COADMIN'), async (req, res, n
     const data: any = {};
     if (req.body.nombre) data.nombre = req.body.nombre;
     if (req.body.activo !== undefined) data.activo = req.body.activo;
+    if (req.body.bodegaPrincipalId !== undefined) data.bodegaPrincipalId = req.body.bodegaPrincipalId || null;
     res.json(await db.region.update({ where: { id: req.params.id }, data }));
   } catch (e) { next(e); }
 });

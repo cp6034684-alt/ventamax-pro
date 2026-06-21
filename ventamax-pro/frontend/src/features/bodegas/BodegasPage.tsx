@@ -13,6 +13,10 @@ export function BodegasPage() {
     mutationFn: () => regionesApi.crear(nuevaRegion.trim()),
     onSuccess: () => { setNuevaRegion(''); qc.invalidateQueries({ queryKey: ['regiones'] }); },
   });
+  const fijarPrincipal = useMutation({
+    mutationFn: ({ id, bodegaPrincipalId }: { id: string; bodegaPrincipalId: string | null }) => regionesApi.actualizar(id, { bodegaPrincipalId }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['regiones'] }); },
+  });
   const crearBodega = useMutation({
     mutationFn: (d: any) => bodegasApi.crear(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bodegas'] }); qc.invalidateQueries({ queryKey: ['regiones'] }); },
@@ -33,15 +37,20 @@ export function BodegasPage() {
           <button className="btn" disabled={!nuevaRegion.trim() || crearRegion.isPending}
             onClick={() => crearRegion.mutate()}>Agregar</button>
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
           {!regiones?.length && <span className="muted" style={{ fontSize: 12 }}>Aún no hay regiones.</span>}
           {regiones?.map(r => (
-            <span key={r.id} style={{
-              background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 16,
-              padding: '4px 12px', fontSize: 12, fontWeight: 700,
-            }}>
-              {r.nombre} <span className="muted" style={{ fontWeight: 500 }}>· {r._count?.bodegas ?? 0} bodega(s)</span>
-            </span>
+            <div key={r.id} className="card" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: 13 }}>{r.nombre}</strong>
+              <span className="muted" style={{ fontSize: 11 }}>· {r._count?.bodegas ?? 0} bodega(s)</span>
+              <label style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>Bodega principal:
+                <select value={r.bodegaPrincipalId ?? ''} onChange={e => fijarPrincipal.mutate({ id: r.id, bodegaPrincipalId: e.target.value || null })}
+                  style={{ width: 'auto', fontSize: 11, padding: '4px 6px' }}>
+                  <option value="">— ninguna —</option>
+                  {(r.bodegas ?? []).map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+                </select>
+              </label>
+            </div>
           ))}
         </div>
       </div>
