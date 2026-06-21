@@ -5,8 +5,8 @@
   --green: #00e5a0; --red: #ff4060; --orange: #ffaa00; --purple: #c084fc;
   --text: #dff0ff; --muted: #5a7a9a; --radius: 16px;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body, #root { height: 100%; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; min-width: 0; }
+html, body, #root { height: 100%; max-width: 100%; overflow-x: hidden; }
 body {
   background: var(--bg); color: var(--text);
   font-family: 'Sora', sans-serif; touch-action: manipulation;
