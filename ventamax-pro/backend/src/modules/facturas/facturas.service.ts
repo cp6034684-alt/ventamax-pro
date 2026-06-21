@@ -2,6 +2,26 @@ import { Prisma } from '@prisma/client';
 import { db } from '../../config/db';
 import { precioDeLista } from '../productos/listas';
 
+// ── Inventario por bodega ─────────────────────────────────────
+// Ajusta la existencia de la bodega principal de la región del vendedor.
+// Aditivo: el stock TOTAL del producto se sigue ajustando como siempre;
+// esto solo agrega el seguimiento por bodega (si la bodega es resoluble).
+export async function bodegaDeVendedor(tx: any, vendedorId?: string | null): Promise<string | null> {
+  if (!vendedorId) return null;
+  const u = await tx.usuario.findUnique({ where: { id: vendedorId }, select: { regionId: true } });
+  if (!u?.regionId) return null;
+  const r = await tx.region.findUnique({ where: { id: u.regionId }, select: { bodegaPrincipalId: true } });
+  return r?.bodegaPrincipalId ?? null;
+}
+export async function ajustarBodega(tx: any, bodegaId: string | null, productoId: string, delta: number): Promise<void> {
+  if (!bodegaId || !delta) return;
+  await tx.stockBodega.upsert({
+    where: { productoId_bodegaId: { productoId, bodegaId } },
+    create: { productoId, bodegaId, cantidad: delta },
+    update: { cantidad: { increment: delta } },
+  });
+}
+
 /**
  * Crea una factura de forma transaccional:
  *  1. Congela precios de venta actuales en los items.
@@ -66,11 +86,13 @@ export async function crearFactura(vendedorId: string, datos: {
     });
 
     // Descontar stock + movimiento de inventario
+    const bodVta = await bodegaDeVendedor(tx, vendedorId);
     for (const i of datos.items) {
       await tx.producto.update({
         where: { id: i.productoId },
         data: { stock: { decrement: i.cantidad } },
       });
+      await ajustarBodega(tx, bodVta, i.productoId, -i.cantidad);
       await tx.movimientoStock.create({
         data: { productoId: i.productoId, tipo: 'SALIDA', cantidad: i.cantidad, facturaId: f.id },
       });
@@ -134,12 +156,14 @@ export async function crearDevolucion(vendedorId: string, datos: {
     });
 
     // La mercancía devuelta vuelve al inventario.
+    const bodDev = await bodegaDeVendedor(tx, vendedorId);
     for (const i of datos.items) {
       const cant = Math.abs(i.cantidad);
       await tx.producto.update({
         where: { id: i.productoId },
         data: { stock: { increment: cant } },
       });
+      await ajustarBodega(tx, bodDev, i.productoId, cant);
       await tx.movimientoStock.create({
         data: { productoId: i.productoId, tipo: 'DEVOLUCION', cantidad: cant, facturaId: f.id, motivo: datos.notas },
       });
@@ -213,8 +237,10 @@ export async function registrarDevolucion(actorId: string, facturaId: string, da
       },
     });
 
+    const bodReg = await bodegaDeVendedor(tx, origen.vendedorId);
     for (const [productoId, cant] of porProd) {
       await tx.producto.update({ where: { id: productoId }, data: { stock: { increment: cant } } });
+      await ajustarBodega(tx, bodReg, productoId, cant);
       await tx.movimientoStock.create({
         data: { productoId, tipo: 'DEVOLUCION', cantidad: cant, facturaId: dev.id, motivo: `Devolución ${datos.tipo} #${origen.consecutivo}` },
       });
@@ -258,10 +284,12 @@ export async function revivirEntrega(actorRol: string, facturaId: string) {
       where: { facturaOrigenId: origen.id, tipoDoc: 'DEVOLUCION', estado: { not: 'ANULADA' } },
       include: { items: true },
     });
+    const bodRev = await bodegaDeVendedor(tx, (origen as any).vendedorId);
     for (const d of devs) {
       for (const it of d.items) {
         const cant = Math.abs(it.cantidad);
         await tx.producto.update({ where: { id: it.productoId }, data: { stock: { decrement: cant } } });
+        await ajustarBodega(tx, bodRev, it.productoId, -cant);
         await tx.movimientoStock.create({
           data: { productoId: it.productoId, tipo: 'SALIDA', cantidad: cant, facturaId: d.id, motivo: `Revivir pedido #${origen.consecutivo}` },
         });
@@ -301,8 +329,10 @@ export async function editarFactura(actor: { id: string; rol: string }, facturaI
       throw Object.assign(new Error('Solo puedes editar tus propios pedidos'), { status: 403, expose: true });
     }
 
+    const bodEd = await bodegaDeVendedor(tx, f.vendedorId);
     for (const it of f.items) {
       await tx.producto.update({ where: { id: it.productoId }, data: { stock: { increment: it.cantidad } } });
+      await ajustarBodega(tx, bodEd, it.productoId, it.cantidad);
     }
 
     const productos = await tx.producto.findMany({ where: { id: { in: datos.items.map(i => i.productoId) } } });
@@ -324,6 +354,7 @@ export async function editarFactura(actor: { id: string; rol: string }, facturaI
 
     for (const i of datos.items) {
       await tx.producto.update({ where: { id: i.productoId }, data: { stock: { decrement: i.cantidad } } });
+      await ajustarBodega(tx, bodEd, i.productoId, -i.cantidad);
     }
     if (esCredito) {
       await tx.cliente.update({ where: { id: f.clienteId }, data: { saldoPendiente: { increment: total } } });

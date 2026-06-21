@@ -6,7 +6,7 @@ import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
 import { leerPaginacion, respuestaPaginada } from '../../utils/pagination';
 import { facturaCrearSchema, facturaEstadoSchema, devolucionCrearSchema, devolverSchema, facturaEditarSchema } from './facturas.schemas';
-import { crearFactura, crearDevolucion, registrarDevolucion, revivirEntrega, editarFactura } from './facturas.service';
+import { crearFactura, crearDevolucion, registrarDevolucion, revivirEntrega, editarFactura, bodegaDeVendedor, ajustarBodega } from './facturas.service';
 
 const abonoSchema = z.object({ monto: z.number().positive() });
 
@@ -133,8 +133,10 @@ facturasRouter.patch('/:id/estado', validarBody(facturaEstadoSchema), async (req
         if (!f) throw Object.assign(new Error('Factura no encontrada'), { status: 404, expose: true });
         if (f.estado === 'ANULADA') return f;
 
+        const bodAnul = await bodegaDeVendedor(tx, (f as any).vendedorId);
         for (const i of f.items) {
           await tx.producto.update({ where: { id: i.productoId }, data: { stock: { increment: i.cantidad } } });
+          await ajustarBodega(tx, bodAnul, i.productoId, i.cantidad);
           await tx.movimientoStock.create({
             data: { productoId: i.productoId, tipo: 'DEVOLUCION', cantidad: i.cantidad, motivo: `Anulación factura #${f.consecutivo}`, facturaId: f.id },
           });
