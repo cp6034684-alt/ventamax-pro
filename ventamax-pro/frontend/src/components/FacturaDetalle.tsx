@@ -65,6 +65,8 @@ export function FacturaDetalle({ factura, onCerrar }: { factura: Factura; onCerr
     day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true,
   });
   const montoDev = Math.abs(Number(factura.total));
+  const refs = factura.items.length;
+  const unidades = factura.items.reduce((s, i) => s + Math.abs(i.cantidad), 0);
 
   if (recibo) return <Recibo factura={factura} onCerrar={() => setRecibo(false)} />;
   if (editar) return <FacturaEditar factura={factura} onCerrar={onCerrar} />;
@@ -115,6 +117,9 @@ export function FacturaDetalle({ factura, onCerrar }: { factura: Factura; onCerr
               <span className="mono" style={{ flexShrink: 0, color: esDev ? 'var(--red)' : undefined }}>{fmtMoneda(i.total)}</span>
             </div>
           ))}
+          <div className="muted" style={{ fontSize: 11, textAlign: 'center', paddingTop: 8, marginTop: 4, borderTop: '1px solid var(--border)' }}>
+            📦 {refs} referencia{refs !== 1 ? 's' : ''} · {unidades} unidad{unidades !== 1 ? 'es' : ''}
+          </div>
         </div>
 
         {/* Documento de devolución */}

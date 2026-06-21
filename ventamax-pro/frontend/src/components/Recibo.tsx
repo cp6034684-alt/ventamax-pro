@@ -60,6 +60,11 @@ function textoRecibo(f: Factura): string {
     t += '  @ ' + num(i.precioUnit) + ' c/u\n';
   });
   t += guion + '\n';
+  const refs = f.items.length;
+  const unds = f.items.reduce((s, i) => s + Math.abs(i.cantidad), 0);
+  t += der('Referencias:', String(refs)) + '\n';
+  t += der('Unidades:', String(unds)) + '\n';
+  t += guion + '\n';
   if (Number(f.descuento) > 0) {
     t += der('Subtotal:', num(f.subtotal)) + '\n';
     t += der('Descuento:', '-' + num(f.descuento)) + '\n';
