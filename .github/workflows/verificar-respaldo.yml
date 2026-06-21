@@ -15,7 +15,6 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
 
       - name: Contar datos + probar cifrado/descifrado
         env:
@@ -23,12 +22,14 @@ jobs:
           BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
         run: |
           set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo "Usando: $(pg_dump --version)"
           echo "==================== CONTEO EN PRODUCCION ===================="
           psql "$DATABASE_URL" -c "SELECT 'clientes' AS tabla, count(*) FROM clientes UNION ALL SELECT 'productos', count(*) FROM productos UNION ALL SELECT 'usuarios', count(*) FROM usuarios ORDER BY tabla;"
           echo
           echo "============ RESPALDO DE PRUEBA: CIFRAR Y DESCIFRAR ============"
           pg_dump "$DATABASE_URL" --no-owner --no-privileges > prueba.sql
-          echo "Tamano del dump:"; wc -c prueba.sql
+          echo "Tamano del dump (bytes):"; wc -c prueba.sql
           gzip -c prueba.sql | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"$BACKUP_PASSWORD" -out prueba.enc
           echo "Cifrado OK:"; du -h prueba.enc
           openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$BACKUP_PASSWORD" -in prueba.enc | gunzip > prueba2.sql
