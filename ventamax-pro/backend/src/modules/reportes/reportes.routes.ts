@@ -575,7 +575,7 @@ reportesRouter.get('/dashboard', async (req, res, next) => {
       porCategoria,
       porProducto,
     });
-  } catch (e) { next(e); }
+  } catch (e) { console.error('DASHBOARD ERROR:', e); res.status(500).json({ error: 'dashboard', detail: String((e as any)?.message ?? e).slice(0, 500) }); }
 });
 
 // GET /api/reportes/rentabilidad?periodo=&desde=&hasta= — venta, costo, ganancia y margen
