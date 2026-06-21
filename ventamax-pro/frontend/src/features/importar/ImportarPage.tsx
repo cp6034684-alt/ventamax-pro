@@ -4,6 +4,13 @@ import { importarApi } from '../../api/servicios';
 
 type Tipo = 'clientes' | 'productos' | 'listas' | 'inventario';
 
+const DESCRIPCION: Record<Tipo, string> = {
+  clientes: 'Carga clientes nuevos a la base de datos.',
+  productos: '⚠️ Solo para la carga INICIAL del catálogo. Crea productos nuevos; si el código ya existe, lo OMITE (no lo actualiza).',
+  inventario: '📥 Uso diario: actualiza la EXISTENCIA y el PRECIO de cada producto según el informe de bodega, y crea las referencias nuevas.',
+  listas: 'Asigna a cada cliente su lista de precios (lo busca por NIT; no crea clientes).',
+};
+
 const COLUMNAS: Record<Tipo, string> = {
   clientes: 'nombre*, razonSocial, nit, tipologia, listaPrecio, contacto, telefono, correo, direccion, barrio, ciudad, zona, segmento, diaVisita (1-7), lat, lng',
   productos: 'codigo, nombre*, marca, categoria, linea, segmento, subsegmento, unidad, iva, precioCompra, precioGeneral, precioMayorista, precioTat, precioDroguerias, precioTatViajeros, precioEntreSede, stock',
@@ -185,7 +192,8 @@ export function ImportarPage() {
       </div>
 
       <div className="card">
-        <p style={{ fontSize: 13, marginBottom: 6 }}>Columnas esperadas en el Excel (fila 1 = encabezados):</p>
+        <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, lineHeight: 1.4 }}>{DESCRIPCION[tipo]}</p>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 4 }}>{tipo === 'inventario' ? 'El archivo de bodega tal cual (encabezados donde diga REFERENCIA):' : 'Columnas esperadas en el Excel (fila 1 = encabezados):'}</p>
         <p className="mono accent" style={{ fontSize: 12, marginBottom: 12 }}>{COLUMNAS[tipo]}</p>
         <div style={{ display: 'grid', gap: 8 }}>
           <button className="btn btn-ghost" onClick={descargarPlantilla}>⬇ Descargar plantilla</button>
