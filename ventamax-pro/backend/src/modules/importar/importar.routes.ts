@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { db } from '../../config/db';
 import { requiereAuth, requiereRol } from '../../middleware/auth';
@@ -181,6 +182,66 @@ importarRouter.post('/precios', validarBody(lotePreciosSchema), async (req, res,
       WHERE p.codigo = d.codigo`);
 
     res.json({ actualizados: r, recibidos: filas.length });
+  } catch (e) { next(e); }
+});
+
+// ── Carga masiva de VENDEDORES ────────────────────────────────
+// Crea usuarios rol VENDEDOR. usuario = documento, PIN = últimos 4 del documento.
+// Resuelve/crea la región por nombre. No recrea usuarios ya existentes.
+const loteVendedoresSchema = z.object({
+  filas: z.array(z.object({
+    documento: z.string().min(3),
+    nombre: z.string().min(1),
+    ciudad: z.string().optional(),
+    region: z.string().optional(),
+    zona: z.string().optional(),
+    meta: z.number().optional(),
+    listasPrecios: z.string().optional(),
+  })).min(1).max(500),
+});
+
+const LISTAS_VEND = new Set(['GENERAL', 'MAYORISTA', 'TAT', 'DROGUERIAS', 'TAT_VIAJEROS', 'ENTRE_SEDE']);
+
+importarRouter.post('/vendedores', validarBody(loteVendedoresSchema), async (req, res, next) => {
+  try {
+    // Resolver/crear regiones por nombre
+    const regionId = new Map<string, string>();
+    const nombres = [...new Set((req.body.filas as any[])
+      .map((f) => String(f.region || '').trim().toUpperCase()).filter(Boolean))];
+    for (const nom of nombres) {
+      let r = await (db as any).region.findUnique({ where: { nombre: nom } });
+      if (!r) r = await (db as any).region.create({ data: { nombre: nom } });
+      regionId.set(nom, r.id);
+    }
+
+    let creados = 0, omitidos = 0;
+    const detalle: any[] = [];
+    for (const f of req.body.filas as any[]) {
+      const usuario = String(f.documento).trim();
+      const ya = await db.usuario.findUnique({ where: { usuario } });
+      if (ya) { omitidos++; detalle.push({ usuario, estado: 'ya existe' }); continue; }
+      const pin = usuario.slice(-4).padStart(4, '0');
+      const listas = String(f.listasPrecios || '').split(',')
+        .map((x) => x.trim().toUpperCase()).filter((x) => LISTAS_VEND.has(x));
+      const reg = f.region ? regionId.get(String(f.region).trim().toUpperCase()) ?? null : null;
+      await db.usuario.create({
+        data: ({
+          nombre: String(f.nombre).trim(),
+          usuario,
+          pinHash: await bcrypt.hash(pin, 10),
+          rol: 'VENDEDOR',
+          documento: usuario,
+          ciudad: f.ciudad ? String(f.ciudad).trim() : null,
+          zona: f.zona ? String(f.zona).trim() : null,
+          meta: typeof f.meta === 'number' ? Math.round(f.meta) : undefined,
+          listasPrecios: listas,
+          regionId: reg,
+        } as any),
+      });
+      creados++;
+      detalle.push({ usuario, estado: 'creado', pin });
+    }
+    res.json({ creados, omitidos, detalle });
   } catch (e) { next(e); }
 });
 

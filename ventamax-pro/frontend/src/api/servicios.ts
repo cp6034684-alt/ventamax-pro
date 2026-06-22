@@ -105,6 +105,7 @@ export const importarApi = {
   inventario: (bodegaId: string, filas: any[], archivo?: string) => api<{ actualizados: number; creados: number; cargaId: string | null }>('/importar/inventario', { method: 'POST', body: JSON.stringify({ bodegaId, filas, archivo }) }),
   revertirCarga: (id: string) => api<{ revertida: boolean; items: number }>(`/importar/inventario/cargas/${id}/revertir`, { method: 'POST' }),
   precios: (filas: any[]) => api<{ actualizados: number; recibidos: number }>('/importar/precios', { method: 'POST', body: JSON.stringify({ filas }) }),
+  vendedores: (filas: any[]) => api<{ creados: number; omitidos: number }>('/importar/vendedores', { method: 'POST', body: JSON.stringify({ filas }) }),
 
 };
 

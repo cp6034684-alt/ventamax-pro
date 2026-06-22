@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { importarApi, bodegasApi } from '../../api/servicios';
 import type { Bodega } from '../../api/tipos';
 
-type Tipo = 'clientes' | 'productos' | 'listas' | 'inventario' | 'precios';
+type Tipo = 'clientes' | 'productos' | 'listas' | 'inventario' | 'precios' | 'vendedores';
 
 const DESCRIPCION: Record<Tipo, string> = {
   clientes: 'Carga clientes nuevos a la base de datos.',
@@ -11,6 +11,7 @@ const DESCRIPCION: Record<Tipo, string> = {
   inventario: '📥 Uso diario: actualiza la EXISTENCIA y el PRECIO de cada producto según el informe de bodega, y crea las referencias nuevas.',
   listas: 'Asigna a cada cliente su lista de precios (lo busca por NIT; no crea clientes).',
   precios: '💲 Actualiza las listas de precio y el % de IVA de productos EXISTENTES (los busca por código). No toca el stock ni crea productos.',
+  vendedores: '🧑\u200d💼 Crea los vendedores. Usuario = documento, PIN = últimos 4 del documento. Asigna ciudad, región, ticket, meta y listas. No recrea los ya existentes.',
 };
 
 const COLUMNAS: Record<Tipo, string> = {
@@ -19,6 +20,7 @@ const COLUMNAS: Record<Tipo, string> = {
   listas: 'nit, listaPrecio (tipologia opcional) — actualiza la lista de los clientes existentes por NIT',
   inventario: 'REFERENCIA, DETALLE, MARCA, TAT, SALDO — informe de bodega: actualiza existencia y precio por referencia',
   precios: 'codigo, precioGeneral, precioMayorista, precioTat, precioDroguerias, iva — actualiza precios e IVA por código',
+  vendedores: 'documento, nombre, ciudad, region, canal, zona (ticket), meta, listasPrecios',
 };
 
 // El código del cliente lo genera el sistema (VMX-####), por eso no se importa.
@@ -97,6 +99,26 @@ export function ImportarPage() {
       datos = XLSX.utils.sheet_to_json<any>(hoja, { defval: undefined });
     }
 
+    if (tipo === 'vendedores') {
+      const vs = datos.map(f => {
+        const o: any = {};
+        for (const [k, v] of Object.entries(f)) {
+          if (v === undefined || v === null || String(v).trim() === '') continue;
+          const h = normHeader(k);
+          if (h === 'documento' || h === 'cedula') o.documento = String(v).trim();
+          else if (h === 'nombre') o.nombre = String(v).trim();
+          else if (h === 'ciudad') o.ciudad = String(v).trim();
+          else if (h === 'region' || h === 'regional') o.region = String(v).trim();
+          else if (h === 'zona' || h === 'ticket' || h === 'ruta') o.zona = String(v).trim();
+          else if (h === 'meta' || h === 'presupuesto') o.meta = Number(v);
+          else if (h === 'listasprecios' || h === 'listas') o.listasPrecios = String(v).trim();
+        }
+        return o;
+      }).filter(o => o.documento && o.nombre);
+      if (!vs.length) return setError('No se encontraron vendedores válidos (se requieren documento y nombre).');
+      return setFilas(vs);
+    }
+
     // Normalizar: mapear encabezados (alias en español), trim y conversión numérica
     const limpias = datos.map(f => {
       const fila: any = {};
@@ -168,6 +190,9 @@ export function ImportarPage() {
         } else if (tipo === 'precios') {
           const r = await importarApi.precios(bloque);
           actualizados += r.actualizados;
+        } else if (tipo === 'vendedores') {
+          const r = await importarApi.vendedores(bloque);
+          creados += r.creados; omitidos += r.omitidos;
         } else {
           const r: { insertados: number; omitidos?: number } = tipo === 'clientes'
             ? await importarApi.clientes(bloque, asignarCodigo)
@@ -179,6 +204,7 @@ export function ImportarPage() {
       }
       if (tipo === 'inventario') { const nb = bodegas.find(b => b.id === bodegaId)?.nombre ?? ''; setResultado(`✅ Inventario en ${nb}: ${actualizados} actualizado(s), ${creados} nuevo(s)`); }
       else if (tipo === 'precios') setResultado(`✅ ${actualizados} producto(s) con precio/IVA actualizado(s)`);
+      else if (tipo === 'vendedores') setResultado(`✅ ${creados} vendedor(es) creado(s)${omitidos ? ` · ${omitidos} ya existían` : ''}`);
       else setResultado(`✅ ${insertados} fila(s) importada(s)${omitidos ? ` · ${omitidos} omitida(s) por código duplicado` : ''}`);
       setFilas([]);
     } catch (e: any) {
@@ -197,10 +223,10 @@ export function ImportarPage() {
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', gap: 6 }}>
-        {(['clientes', 'productos', 'inventario', 'precios', 'listas'] as Tipo[]).map(t => (
+        {(['clientes', 'productos', 'inventario', 'precios', 'vendedores', 'listas'] as Tipo[]).map(t => (
           <button key={t} className={`btn ${tipo === t ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 13 }}
             onClick={() => { setTipo(t); setFilas([]); setResultado(''); }}>
-            {t === 'clientes' ? '👥 Clientes' : t === 'productos' ? '📦 Productos' : t === 'inventario' ? '📥 Inventario' : t === 'precios' ? '💲 Precios' : '🏷️ Listas'}
+            {t === 'clientes' ? '👥 Clientes' : t === 'productos' ? '📦 Productos' : t === 'inventario' ? '📥 Inventario' : t === 'precios' ? '💲 Precios' : t === 'vendedores' ? '🧑\u200d💼 Vendedores' : '🏷️ Listas'}
           </button>
         ))}
       </div>
