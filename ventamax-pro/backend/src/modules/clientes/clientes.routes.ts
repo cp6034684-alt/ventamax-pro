@@ -14,31 +14,33 @@ clientesRouter.use(requiereAuth);
 clientesRouter.get('/', async (req, res, next) => {
   try {
     const { pagina, porPagina, skip, take } = leerPaginacion(req);
-    const where: any = { activo: true };
+    // Filtros como fragmentos SQL (búsqueda insensible a mayúsculas Y tildes via unaccent).
+    const cond: any[] = [Prisma.sql`activo = true`];
+    if (req.query.dia) cond.push(Prisma.sql`"diaVisita" = ${Number(req.query.dia)}`);
+    if (req.query.barrio) cond.push(Prisma.sql`barrio = ${String(req.query.barrio)}`);
     if (req.query.busqueda) {
-      const q = String(req.query.busqueda);
-      where.OR = [
-        { nombre: { contains: q, mode: 'insensitive' } },
-        { razonSocial: { contains: q, mode: 'insensitive' } },
-        { nit: { contains: q, mode: 'insensitive' } },
-        { barrio: { contains: q, mode: 'insensitive' } },
-        { ciudad: { contains: q, mode: 'insensitive' } },
-        { direccion: { contains: q, mode: 'insensitive' } },
-        { contacto: { contains: q, mode: 'insensitive' } },
-        { telefono: { contains: q, mode: 'insensitive' } },
-      ];
-      // Si busca un número, también compara por código
-      const n = Number(q.replace(/\D/g, ''));
-      if (!Number.isNaN(n) && n > 0) where.OR.push({ codigo: n });
+      const txt = String(req.query.busqueda).trim();
+      const q = `%${txt}%`;
+      const n = Number(txt.replace(/\D/g, ''));
+      const porCodigo = (!Number.isNaN(n) && n > 0) ? Prisma.sql` OR codigo = ${n}` : Prisma.empty;
+      cond.push(Prisma.sql`(
+        unaccent(coalesce(nombre,'')) ILIKE unaccent(${q})
+        OR unaccent(coalesce("razonSocial",'')) ILIKE unaccent(${q})
+        OR unaccent(coalesce(nit,'')) ILIKE unaccent(${q})
+        OR unaccent(coalesce(barrio,'')) ILIKE unaccent(${q})
+        OR unaccent(coalesce(ciudad,'')) ILIKE unaccent(${q})
+        OR unaccent(coalesce(direccion,'')) ILIKE unaccent(${q})
+        OR unaccent(coalesce(contacto,'')) ILIKE unaccent(${q})
+        OR unaccent(coalesce(telefono,'')) ILIKE unaccent(${q})
+        ${porCodigo}
+      )`);
     }
-    if (req.query.dia) where.diaVisita = Number(req.query.dia);
-    if (req.query.barrio) where.barrio = String(req.query.barrio);
-
-    const [datos, total] = await Promise.all([
-      db.cliente.findMany({ where, skip, take, orderBy: { nombre: 'asc' } }),
-      db.cliente.count({ where }),
+    const where = Prisma.join(cond, ' AND ');
+    const [datos, totalRows] = await Promise.all([
+      db.$queryRaw<any[]>(Prisma.sql`SELECT * FROM clientes WHERE ${where} ORDER BY nombre ASC OFFSET ${skip} LIMIT ${take}`),
+      db.$queryRaw<any[]>(Prisma.sql`SELECT COUNT(*)::int AS n FROM clientes WHERE ${where}`),
     ]);
-    res.json(respuestaPaginada(datos, total, pagina, porPagina));
+    res.json(respuestaPaginada(datos, totalRows[0]?.n ?? 0, pagina, porPagina));
   } catch (e) { next(e); }
 });
 
