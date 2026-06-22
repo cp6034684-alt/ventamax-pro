@@ -16,7 +16,7 @@ regionesRouter.get('/', async (_req, res, next) => {
     res.json(await db.region.findMany({
       where: { activo: true },
       orderBy: { nombre: 'asc' },
-      include: { _count: { select: { bodegas: true } }, bodegas: { select: { id: true, nombre: true }, where: { activo: true } } },
+      include: { _count: { select: { bodegas: { where: { activo: true } } } }, bodegas: { select: { id: true, nombre: true }, where: { activo: true } } },
     }));
   } catch (e) { next(e); }
 });
