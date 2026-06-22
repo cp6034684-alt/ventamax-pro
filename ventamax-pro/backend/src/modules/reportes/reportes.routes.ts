@@ -175,6 +175,17 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
     });
 
     const dosDig = (n: number) => String(n).padStart(2, '0');
+    // Fecha de la PRIMERA compra (venta) de cada cliente — en toda su historia, no solo el rango.
+    const clienteIds = [...new Set(facturas.map((f: any) => f.clienteId))];
+    const primeras = clienteIds.length
+      ? await db.factura.groupBy({
+          by: ['clienteId'],
+          where: { clienteId: { in: clienteIds }, estado: { not: 'ANULADA' }, tipoDoc: 'VENTA' },
+          _min: { creadoEn: true },
+        })
+      : [];
+    const primeraPorCliente = new Map(primeras.map((x: any) => [x.clienteId, x._min.creadoEn as Date | null]));
+    const fmtDia = (dt: Date | null) => dt ? `${dt.getFullYear()}-${dosDig(dt.getMonth() + 1)}-${dosDig(dt.getDate())}` : '';
     const filas: any[] = [];
 
     for (const f of facturas) {
@@ -183,9 +194,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
       const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}:${dosDig(d.getSeconds())}`;
       const esDev = f.tipoDoc === 'DEVOLUCION';
       const c = f.cliente;
-      const dc = new Date(c.creadoEn);
-      const fechaCreacionCliente = `${dc.getFullYear()}-${dosDig(dc.getMonth() + 1)}-${dosDig(dc.getDate())}`;
-      const clienteNuevo = (c.creadoEn >= desde && c.creadoEn <= hasta) ? 'CLIENTE NUEVO' : '';
+      const fechaPrimeraCompra = fmtDia(primeraPorCliente.get(f.clienteId) ?? null);
 
       for (const it of f.items) {
         const p: any = it.producto;
@@ -202,8 +211,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
           docVendedor: f.vendedor?.documento ?? '',
           codigoCliente: c.codigo ?? '',
           nombreCliente: c.razonSocial ?? c.nombre,
-          fechaCreacionCliente,
-          clienteNuevo,
+          fechaPrimeraCompra,
           nit: c.nit ?? '',
           negocio: c.nombre,
           tipologia: c.tipologia ?? '',
