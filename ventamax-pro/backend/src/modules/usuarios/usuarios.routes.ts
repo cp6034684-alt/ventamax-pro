@@ -16,6 +16,7 @@ const usuarioSchema = z.object({
   documento: z.string().optional(),
   ciudad: z.string().optional(),
   telefono: z.string().optional(),
+  canal: z.string().optional(), // MIXTO|FOCALIZADO|MAYORISTA|VIAJERO (genera el ticket)
   meta: z.number().int().min(0).optional(),
   listasPrecios: z.array(z.enum(LISTAS)).optional(),
   regionId: z.string().uuid().nullable().optional(),
@@ -23,8 +24,39 @@ const usuarioSchema = z.object({
 
 const ROLES_ELEVADOS = ['ADMIN', 'COADMIN'];
 
+// ── Ticket/zona del vendedor: CIUDAD-NN-CANAL (ej. ARM-07-MIX) ──
+const CIU_COD: Record<string, string> = { ARMENIA: 'ARM', IBAGUE: 'IBG', PEREIRA: 'PER' };
+const REG_CIU: Record<string, string> = { ARMENIA: 'QUINDIO', PEREIRA: 'QUINDIO', IBAGUE: 'TOLIMA' };
+const sinTilde = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function ciudadCod(c?: string) { const u = sinTilde(String(c ?? '').trim().toUpperCase()); return CIU_COD[u] ?? u.slice(0, 3); }
+function canalCod(c?: string) {
+  const u = String(c ?? '').trim().toUpperCase();
+  if (u.startsWith('MIX')) return 'MIX';
+  if (u.startsWith('FOC')) return 'FOC';
+  if (u.startsWith('MAY')) return 'MAY';
+  if (u.startsWith('VIA')) return 'VIA';
+  return 'GEN';
+}
+async function siguienteTicket(ciudad?: string, canal?: string) {
+  const ciu = ciudadCod(ciudad);
+  const vendedores = await db.usuario.findMany({ where: { zona: { startsWith: ciu + '-' } }, select: { zona: true } });
+  let max = 0;
+  for (const v of vendedores) {
+    const m = /^[A-Z]{3}-(\d+)-/.exec(String(v.zona ?? ''));
+    if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; }
+  }
+  return `${ciu}-${String(max + 1).padStart(2, '0')}-${canalCod(canal)}`;
+}
+
 export const usuariosRouter = Router();
 usuariosRouter.use(requiereAuth, requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'));
+
+// Previsualizar el ticket que se asignaría a un nuevo vendedor de esa ciudad/canal.
+usuariosRouter.get('/siguiente-ticket', async (req, res, next) => {
+  try {
+    res.json({ ticket: await siguienteTicket(String(req.query.ciudad || ''), String(req.query.canal || '')) });
+  } catch (e) { next(e); }
+});
 
 usuariosRouter.get('/', async (_req, res, next) => {
   try {
@@ -40,10 +72,26 @@ usuariosRouter.post('/', validarBody(usuarioSchema), async (req, res, next) => {
     if (req.usuario!.rol === 'SUPERVISOR' && ROLES_ELEVADOS.includes(req.body.rol)) {
       return res.status(403).json({ error: 'Un supervisor no puede crear administradores' });
     }
-    const { pin, ...resto } = req.body;
+    const { pin, canal, ...resto } = req.body as any;
+    // Vendedor con canal: el sistema asigna el ticket (consecutivo de la ciudad),
+    // la región según la ciudad y las listas de precio según el canal.
+    if (resto.rol === 'VENDEDOR' && canal) {
+      if (!resto.zona) resto.zona = await siguienteTicket(resto.ciudad, canal);
+      if (!resto.regionId && resto.ciudad) {
+        const regName = REG_CIU[sinTilde(String(resto.ciudad).trim().toUpperCase())];
+        if (regName) {
+          let r = await (db as any).region.findUnique({ where: { nombre: regName } });
+          if (!r) r = await (db as any).region.create({ data: { nombre: regName } });
+          resto.regionId = r.id;
+        }
+      }
+      if (!resto.listasPrecios) {
+        resto.listasPrecios = canalCod(canal) === 'FOC' ? ['DROGUERIAS'] : ['GENERAL', 'MAYORISTA', 'TAT', 'DROGUERIAS'];
+      }
+    }
     const u = await db.usuario.create({
       data: ({ ...resto, pinHash: await bcrypt.hash(pin, 10) } as any),
-      select: { id: true, nombre: true, usuario: true, rol: true },
+      select: { id: true, nombre: true, usuario: true, rol: true, zona: true } as any,
     });
     res.status(201).json(u);
   } catch (e) { next(e); }
