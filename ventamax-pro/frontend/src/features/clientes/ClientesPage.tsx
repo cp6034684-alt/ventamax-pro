@@ -47,6 +47,8 @@ function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => v
 export function ClientesPage() {
   const { usuario } = useAuth();
   const esAdmin = usuario?.rol === 'ADMIN' || usuario?.rol === 'COADMIN';
+  // Solo supervisor y administradores pueden definir/cambiar la tipología (lista de precio).
+  const puedeTipologia = esAdmin || usuario?.rol === 'SUPERVISOR';
   const navegar = useNavigate();
 
   const [busqueda, setBusqueda] = useState('');
@@ -171,10 +173,17 @@ export function ClientesPage() {
             <input name="razonSocial" placeholder="Razón social (nombre legal)" defaultValue={editando?.razonSocial ?? ''} />
             <input name="nit" placeholder="NIT / Cédula" defaultValue={editando?.nit ?? ''} />
           </div>
-          <select name="tipologia" defaultValue={editando?.tipologia ?? ''}>
-            <option value="">Tipología (define la lista de precio)…</option>
-            {TIPOLOGIAS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
+          {puedeTipologia ? (
+            <select name="tipologia" defaultValue={editando?.tipologia ?? ''}>
+              <option value="">Tipología (define la lista de precio)…</option>
+              {TIPOLOGIAS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          ) : (
+            <div style={{ fontSize: 12, padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 9, color: 'var(--muted)' }}>
+              Tipología: <b style={{ color: 'var(--text)' }}>{TIPOLOGIAS.find(([v]) => v === editando?.tipologia)?.[1] ?? 'sin asignar'}</b>
+              <span style={{ display: 'block', marginTop: 2, fontSize: 10 }}>Solo un supervisor o administrador puede cambiar la tipología (define la lista de precio).</span>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <input name="telefono" placeholder="Teléfono" defaultValue={editando?.telefono} inputMode="tel" />
             <select name="diaVisita" defaultValue={editando?.diaVisita ?? ''}>

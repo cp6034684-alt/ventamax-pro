@@ -209,13 +209,23 @@ clientesRouter.post('/', validarBody(clienteSchema), async (req, res, next) => {
   try {
     // Al crear un cliente individual, el sistema le asigna el siguiente código VMX.
     const codigo = (await maxCodigoCliente()) + 1;
-    res.status(201).json(await db.cliente.create({ data: { ...req.body, codigo } }));
+    const data: any = { ...req.body, codigo };
+    // Solo supervisor/administradores definen la tipología (y con ella la lista de precio).
+    if (!['ADMIN', 'COADMIN', 'SUPERVISOR'].includes(req.usuario!.rol)) {
+      delete data.tipologia; delete data.listaPrecio;
+    }
+    res.status(201).json(await db.cliente.create({ data }));
   } catch (e) { next(e); }
 });
 
 clientesRouter.put('/:id', validarBody(clienteUpdateSchema), async (req, res, next) => {
   try {
-    res.json(await db.cliente.update({ where: { id: req.params.id }, data: req.body }));
+    const data: any = { ...req.body };
+    // La tipología (lista de precio) solo la puede cambiar supervisor/administradores.
+    if (!['ADMIN', 'COADMIN', 'SUPERVISOR'].includes(req.usuario!.rol)) {
+      delete data.tipologia; delete data.listaPrecio;
+    }
+    res.json(await db.cliente.update({ where: { id: req.params.id }, data }));
   } catch (e) { next(e); }
 });
 

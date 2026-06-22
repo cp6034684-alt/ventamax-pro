@@ -10,6 +10,12 @@ import type { Cliente } from '../../api/tipos';
 
 const DIAS = ['—', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
+// Etiqueta amable de la tipología (define la lista de precio del cliente).
+const TIPOLOGIA_LABEL: Record<string, string> = {
+  TAT: 'TAT (tienda)', DROGUERIAS: 'Droguería', MAYORISTA: 'Mayorista',
+  GENERAL: 'General', TAT_VIAJEROS: 'TAT Viajeros', ENTRE_SEDE: 'Entre Sede',
+};
+
 function iniciales(n: string) {
   return n.trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || '?';
 }
@@ -129,7 +135,7 @@ export function ClienteDetalle({ cliente, onCerrar, onEditar, onVender }: {
               <Dato etiqueta="Barrio" valor={c.barrio} />
               <Dato etiqueta="Dirección" valor={c.direccion} />
               <Dato etiqueta="Zona" valor={c.zona} />
-              <Dato etiqueta="Segmento" valor={c.segmento} />
+              <Dato etiqueta="Tipología" valor={c.tipologia ? (TIPOLOGIA_LABEL[c.tipologia] ?? c.tipologia) : null} />
               <Dato etiqueta="Saldo pendiente" valor={Number(c.saldoPendiente) > 0 ? fmtMoneda(c.saldoPendiente) : 'Al día'} />
             </div>
             {!c.correo && (
