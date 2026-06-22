@@ -14,7 +14,7 @@ const NAV_POR_ROL: Record<Rol, NavItem[]> = {
     { ruta: '/clientes', icono: '👥', etiqueta: 'CLIENTES' },
     { ruta: '/mi-inventario', icono: '📦', etiqueta: 'INVENTARIO' },
     { ruta: '/mapa', icono: '🗺', etiqueta: 'MAPA' },
-    { ruta: '/mas', icono: '☰', etiqueta: 'MÁS' },
+    { ruta: '/indicadores', icono: '📈', etiqueta: 'INDICADORES' },
   ],
   ENTREGADOR: [
     { ruta: '/entregas', icono: '🚚', etiqueta: 'ENTREGAS' },
@@ -63,7 +63,7 @@ const navStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties => (
 });
 
 export function Layout() {
-  const { usuario } = useAuth();
+  const { usuario, cerrarSesion } = useAuth();
   const { pathname } = useLocation();
   const items = usuario ? NAV_POR_ROL[usuario.rol] : [];
 
@@ -103,9 +103,10 @@ export function Layout() {
           background: 'linear-gradient(135deg, var(--accent), #0044ff)', fontSize: 15,
         }}>⚡</div>
         <strong style={{ flex: 1, fontSize: 15 }}>{TITULOS[pathname] ?? 'VentaMax Pro'}</strong>
-        <NavLink to="/perfil" style={{ textDecoration: 'none' }}>
-          <span className="muted" style={{ fontSize: 12 }}>{usuario?.nombre.split(' ')[0]}</span>
-        </NavLink>
+        <span className="muted" style={{ fontSize: 12 }}>{usuario?.nombre.split(' ')[0]}</span>
+        <NavLink to="/perfil" title="Mi perfil" style={{ textDecoration: 'none', fontSize: 18, lineHeight: 1 }}>⚙️</NavLink>
+        <button onClick={cerrarSesion} title="Cerrar sesión" aria-label="Cerrar sesión"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--red)', padding: 0 }}>⏻</button>
       </header>
 
       <main style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
