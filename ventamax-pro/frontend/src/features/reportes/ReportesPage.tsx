@@ -234,7 +234,7 @@ export function ReportesPage() {
       {tab === 'rentab' && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-            <Card titulo="VENTA" valor={fmtMoneda(renta?.totales.venta ?? 0)} color="var(--green)" />
+            <Card titulo="VENTA NETA (sin IVA)" valor={fmtMoneda(renta?.totales.venta ?? 0)} color="var(--green)" />
             <Card titulo="COSTO" valor={fmtMoneda(renta?.totales.costo ?? 0)} color="var(--red)" />
             <Card titulo="GANANCIA" valor={fmtMoneda(renta?.totales.ganancia ?? 0)} sub={`margen ${pct(renta?.totales.margen ?? 0)}`} color="var(--accent)" />
           </div>

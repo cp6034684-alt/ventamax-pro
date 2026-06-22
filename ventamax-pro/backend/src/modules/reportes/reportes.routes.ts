@@ -680,7 +680,7 @@ reportesRouter.get('/rentabilidad', async (req, res, next) => {
 
     const porProducto = await db.$queryRaw<any[]>(Prisma.sql`
       SELECT p.nombre AS nombre,
-             COALESCE(SUM(i.total), 0)::float AS venta,
+             COALESCE(SUM(i.total / (1 + COALESCE(p.iva, 0) / 100.0)), 0)::float AS venta,
              COALESCE(SUM(p."precioCompra" * i.cantidad), 0)::float AS costo,
              COALESCE(SUM(i.cantidad), 0)::int AS unidades
       FROM factura_items i JOIN facturas f ON f.id = i."facturaId" JOIN productos p ON p.id = i."productoId"
@@ -690,7 +690,7 @@ reportesRouter.get('/rentabilidad', async (req, res, next) => {
     `);
     const porCategoria = await db.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(p.categoria, 'Sin categoría') AS nombre,
-             COALESCE(SUM(i.total), 0)::float AS venta,
+             COALESCE(SUM(i.total / (1 + COALESCE(p.iva, 0) / 100.0)), 0)::float AS venta,
              COALESCE(SUM(p."precioCompra" * i.cantidad), 0)::float AS costo,
              COALESCE(SUM(i.cantidad), 0)::int AS unidades
       FROM factura_items i JOIN facturas f ON f.id = i."facturaId" JOIN productos p ON p.id = i."productoId"
