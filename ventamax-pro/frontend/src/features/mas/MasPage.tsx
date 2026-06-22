@@ -23,7 +23,7 @@ const MODULOS: Item[] = [
   { ruta: '/indicadores', icono: '📊', titulo: 'Indicadores',  descripcion: 'Venta, dropsize, efectividad, unidades por marca', roles: CONSULTA },
   { ruta: '/devoluciones', icono: '↩️', titulo: 'Devoluciones', descripcion: 'Registrar devolucion total/parcial sobre una venta', roles: SOLO_SUPERVISOR },
   { ruta: '/entregas',    icono: '🚚', titulo: 'Entregas',    descripcion: 'Cola de logistica: entregar, devolucion y recibo', roles: SOLO_SUPERVISOR },
-  { ruta: '/reportes',    icono: '📈', titulo: 'Reportes',    descripcion: 'Ventas, ranking, cartera y exportar a Excel', roles: GESTION },
+  { ruta: '/reportes',    icono: '📈', titulo: 'Reportes',    descripcion: 'Ventas, ranking, cartera y exportar a Excel', roles: SOLO_SUPERVISOR },
   { ruta: '/importar',    icono: '📥', titulo: 'Importar Excel', descripcion: 'Carga masiva de clientes y productos', roles: ADMINS },
   { ruta: '/duplicados',  icono: '🧹', titulo: 'Clientes duplicados', descripcion: 'Detectar y fusionar clientes con el mismo NIT', roles: ADMINS },
   { ruta: '/usuarios',    icono: '👤', titulo: 'Usuarios',    descripcion: 'Vendedores, entregadores y permisos', roles: GESTION },
