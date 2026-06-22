@@ -12,7 +12,9 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 const COLS_DETALLE: [string, string][] = [
   ['codigoRuta', 'Código ruta'], ['vendedor', 'Vendedor'], ['docVendedor', 'Doc. vendedor'],
-  ['codigoCliente', 'Código cliente'], ['nombreCliente', 'Nombre cliente'], ['nit', 'NIT/Documento'],
+  ['codigoCliente', 'Código cliente'], ['nombreCliente', 'Nombre cliente'],
+  ['fechaCreacionCliente', 'Fecha creación cliente'], ['clienteNuevo', 'Cliente nuevo'],
+  ['nit', 'NIT/Documento'],
   ['negocio', 'Nombre negocio'], ['tipologia', 'Tipología'], ['ciudad', 'Ciudad'], ['barrio', 'Barrio'],
   ['direccion', 'Dirección'], ['celular', 'Celular'], ['lista', 'Lista de precio'],
   ['fecha', 'Fecha'], ['hora', 'Hora'], ['tipo', 'Tipo'], ['factura', 'N° factura'],

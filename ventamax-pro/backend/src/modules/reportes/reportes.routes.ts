@@ -169,7 +169,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
       orderBy: { creadoEn: 'asc' },
       include: {
         cliente: true,
-        vendedor: { select: { nombre: true, documento: true } },
+        vendedor: { select: { nombre: true, documento: true, zona: true } },
         items: { include: { producto: true } },
       },
     });
@@ -183,6 +183,9 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
       const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}:${dosDig(d.getSeconds())}`;
       const esDev = f.tipoDoc === 'DEVOLUCION';
       const c = f.cliente;
+      const dc = new Date(c.creadoEn);
+      const fechaCreacionCliente = `${dc.getFullYear()}-${dosDig(dc.getMonth() + 1)}-${dosDig(dc.getDate())}`;
+      const clienteNuevo = (c.creadoEn >= desde && c.creadoEn <= hasta) ? 'CLIENTE NUEVO' : '';
 
       for (const it of f.items) {
         const p: any = it.producto;
@@ -194,11 +197,13 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
         const costoUnit = Number(p.precioCompra ?? 0);
 
         filas.push({
-          codigoRuta: c.zona ?? '',
+          codigoRuta: f.vendedor?.zona ?? '',
           vendedor: f.vendedor?.nombre ?? '',
           docVendedor: f.vendedor?.documento ?? '',
           codigoCliente: c.codigo ?? '',
           nombreCliente: c.razonSocial ?? c.nombre,
+          fechaCreacionCliente,
+          clienteNuevo,
           nit: c.nit ?? '',
           negocio: c.nombre,
           tipologia: c.tipologia ?? '',
