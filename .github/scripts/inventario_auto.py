@@ -72,7 +72,7 @@ def main():
     sa = json.loads(os.environ['GDRIVE_SA_KEY'])
     folder = os.environ['GDRIVE_FOLDER_ID']
     api = os.environ['API_BASE'].rstrip('/')
-    token = os.environ['IMPORT_TOKEN']
+    token = os.environ['IMPORT_TOKEN'].strip()
     regiones = [x.strip().upper() for x in os.environ.get('INV_REGIONES', 'QUINDIO,TOLIMA').split(',') if x.strip()]
 
     creds = service_account.Credentials.from_service_account_info(

@@ -348,8 +348,11 @@ importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req
 // ── Auto-import seguro (token) para actualizar inventario automáticamente ──
 // Lo usa la tarea programada (3x/día). No requiere login de usuario, solo el token.
 const importToken = (req: any, res: any, next: any) => {
-  const tok = req.headers['x-import-token'];
-  if (!env.IMPORT_TOKEN || tok !== env.IMPORT_TOKEN) return res.status(401).json({ error: 'Token invalido' });
+  const tok = String(req.headers['x-import-token'] ?? '').trim();
+  const real = String(env.IMPORT_TOKEN ?? '').trim();
+  if (!real || tok !== real) {
+    return res.status(401).json({ error: 'Token invalido', serverHasToken: !!real, recvLen: tok.length, serverLen: real.length });
+  }
   next();
 };
 const loteInventarioAutoSchema = z.object({
