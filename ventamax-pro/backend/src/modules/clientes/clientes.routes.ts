@@ -19,6 +19,8 @@ clientesRouter.get('/', async (req, res, next) => {
       const q = String(req.query.busqueda);
       where.OR = [
         { nombre: { contains: q, mode: 'insensitive' } },
+        { razonSocial: { contains: q, mode: 'insensitive' } },
+        { nit: { contains: q, mode: 'insensitive' } },
         { barrio: { contains: q, mode: 'insensitive' } },
         { ciudad: { contains: q, mode: 'insensitive' } },
         { direccion: { contains: q, mode: 'insensitive' } },

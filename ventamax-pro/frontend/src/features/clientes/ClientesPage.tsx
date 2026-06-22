@@ -130,7 +130,7 @@ export function ClientesPage() {
       </div>
 
       {/* ── Buscador ── */}
-      <input placeholder="Buscar por código, nombre, barrio, ciudad, teléfono…" value={busqueda}
+      <input placeholder="Buscar por código, nombre, NIT/documento, barrio, ciudad, teléfono…" value={busqueda}
         onChange={e => { setBusqueda(e.target.value); setPagina(1); }} />
 
       {/* ── Chips por día de visita ── */}
