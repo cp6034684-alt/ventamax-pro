@@ -522,7 +522,7 @@ reportesRouter.get('/dashboard', async (req, res, next) => {
       FROM factura_items i JOIN facturas f ON f.id = i."facturaId" JOIN productos p ON p.id = i."productoId"
       WHERE f.estado <> 'ANULADA' AND f."tipoDoc" = 'VENTA'
         AND f."creadoEn" >= ${desde} AND f."creadoEn" <= ${hasta} ${fVend}
-      GROUP BY nombre ORDER BY venta DESC LIMIT 40
+      GROUP BY p.categoria ORDER BY venta DESC LIMIT 40
     `);
 
     const porProducto = await db.$queryRaw<any[]>(Prisma.sql`
@@ -575,7 +575,7 @@ reportesRouter.get('/dashboard', async (req, res, next) => {
       porCategoria,
       porProducto,
     });
-  } catch (e) { console.error('DASHBOARD ERROR:', e); res.status(500).json({ error: 'dashboard', detail: String((e as any)?.message ?? e).slice(0, 500) }); }
+  } catch (e) { next(e); }
 });
 
 // GET /api/reportes/rentabilidad?periodo=&desde=&hasta= — venta, costo, ganancia y margen
@@ -609,7 +609,7 @@ reportesRouter.get('/rentabilidad', async (req, res, next) => {
       FROM factura_items i JOIN facturas f ON f.id = i."facturaId" JOIN productos p ON p.id = i."productoId"
       WHERE f.estado <> 'ANULADA' AND f."tipoDoc" = 'VENTA'
         AND f."creadoEn" >= ${desde} AND f."creadoEn" <= ${hasta} ${fVend}
-      GROUP BY nombre ORDER BY venta DESC LIMIT 40
+      GROUP BY p.categoria ORDER BY venta DESC LIMIT 40
     `);
 
     const venta = porProducto.reduce((s, r) => s + Number(r.venta), 0);
