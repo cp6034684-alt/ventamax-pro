@@ -9,11 +9,11 @@ const COLOR_ROL: Record<string, string> = {
 };
 
 // Canal a partir del sufijo del ticket (CIU-NN-XXX)
-const CANAL_LABEL: Record<string, string> = { MIX: 'Mixto', FOC: 'Focalizado', MAY: 'Mayorista', VIA: 'Viajero' };
-function canalDeZona(zona?: string | null) {
-  const m = /-([A-Z]{3})$/.exec(String(zona ?? ''));
-  return m ? (CANAL_LABEL[m[1]] ?? '') : '';
-}
+const CANAL_LABEL: Record<string, string> = { MIX: 'Mixto', FOC: 'Focalizado', MAY: 'Mayorista', VIA: 'Viajero', SUP: 'Supervisor' };
+const CANAL_VAL: Record<string, string> = { MIX: 'MIXTO', FOC: 'FOCALIZADO', MAY: 'MAYORISTA', VIA: 'VIAJERO' };
+function sufijoZona(zona?: string | null) { const m = /-([A-Z]{3})$/.exec(String(zona ?? '')); return m ? m[1] : ''; }
+function canalDeZona(zona?: string | null) { return CANAL_LABEL[sufijoZona(zona)] ?? ''; }
+function canalValDeZona(zona?: string | null) { return CANAL_VAL[sufijoZona(zona)] ?? ''; }
 
 const CIUDADES = ['ARMENIA', 'IBAGUE', 'PEREIRA'];
 const CANALES = ['MIXTO', 'FOCALIZADO', 'MAYORISTA', 'VIAJERO'];
@@ -26,19 +26,24 @@ export function UsuariosPage() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['usuarios'], queryFn: usuariosApi.listar });
   const { data: regiones } = useQuery({ queryKey: ['regiones'], queryFn: regionesApi.listar });
+  const supervisores = (data ?? []).filter(u => u.rol === 'SUPERVISOR' && u.activo !== false);
 
   // Estado del formulario de creación (controlado donde define el ticket)
   const [rolN, setRolN] = useState('VENDEDOR');
   const [ciudadN, setCiudadN] = useState('');
   const [canalN, setCanalN] = useState('');
+  const [supervisorN, setSupervisorN] = useState('');
   const esVendedorN = rolN === 'VENDEDOR';
+  const esSupervisorN = rolN === 'SUPERVISOR';
+  const esCampoN = esVendedorN || esSupervisorN; // recibe ticket/region automaticos
+  const canalPrev = esSupervisorN ? 'SUPERVISOR' : canalN;
   const { data: ticketPrev } = useQuery({
-    queryKey: ['siguiente-ticket', ciudadN, canalN],
-    queryFn: () => usuariosApi.siguienteTicket(ciudadN, canalN),
-    enabled: esVendedorN && !!ciudadN && !!canalN,
+    queryKey: ['siguiente-ticket', ciudadN, canalPrev],
+    queryFn: () => usuariosApi.siguienteTicket(ciudadN, canalPrev),
+    enabled: esCampoN && !!ciudadN && (esSupervisorN || !!canalN),
   });
 
-  const invalidar = () => { qc.invalidateQueries({ queryKey: ['usuarios'] }); setMostrarForm(false); setCiudadN(''); setCanalN(''); };
+  const invalidar = () => { qc.invalidateQueries({ queryKey: ['usuarios'] }); setMostrarForm(false); setCiudadN(''); setCanalN(''); setSupervisorN(''); };
   const crear = useMutation({ mutationFn: usuariosApi.crear, onSuccess: invalidar });
   const actualizar = useMutation({
     mutationFn: ({ id, ...d }: any) => usuariosApi.actualizar(id, d), onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
@@ -61,17 +66,18 @@ export function UsuariosPage() {
               documento: String(fd.get('documento') || '') || undefined,
               telefono: String(fd.get('telefono') || '') || undefined,
               meta: fd.get('meta') ? Number(String(fd.get('meta')).replace(/[^\d]/g, '')) : undefined,
-              // Vendedor: ciudad + canal → el sistema asigna el ticket y la región.
-              ciudad: esVendedorN ? (ciudadN || undefined) : (String(fd.get('ciudad') || '') || undefined),
+              // Vendedor/Supervisor: ciudad -> el sistema asigna ticket y region (supervisor = canal SUP).
+              ciudad: esCampoN ? (ciudadN || undefined) : (String(fd.get('ciudad') || '') || undefined),
               canal: esVendedorN ? (canalN || undefined) : undefined,
-              zona: esVendedorN ? undefined : (String(fd.get('zona') || '') || undefined),
-              regionId: esVendedorN ? undefined : (String(fd.get('regionId') || '') || undefined),
+              zona: esCampoN ? undefined : (String(fd.get('zona') || '') || undefined),
+              regionId: esCampoN ? undefined : (String(fd.get('regionId') || '') || undefined),
+              supervisorId: esVendedorN ? (supervisorN || undefined) : undefined,
             });
           }}>
           <input name="nombre" placeholder="Nombre completo *" required />
           <input name="usuario" placeholder="Usuario de acceso *" required autoCapitalize="none" />
           <div style={{ display: 'flex', gap: 8 }}>
-            <input name="pin" placeholder="PIN (4-6 dígitos) *" required pattern="\d{4,6}" inputMode="numeric" style={{ flex: 1 }} />
+            <input name="pin" placeholder="PIN (4-6 digitos) *" required pattern="\d{4,6}" inputMode="numeric" style={{ flex: 1 }} />
             <select value={rolN} onChange={e => setRolN(e.target.value)} required style={{ flex: 1 }}>
               <option value="VENDEDOR">Vendedor</option>
               <option value="ENTREGADOR">Entregador</option>
@@ -81,25 +87,37 @@ export function UsuariosPage() {
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input name="documento" placeholder="Documento / cédula" inputMode="numeric" style={{ flex: 1 }} />
-            <input name="telefono" placeholder="Teléfono" inputMode="tel" style={{ flex: 1 }} />
+            <input name="documento" placeholder="Documento / cedula" inputMode="numeric" style={{ flex: 1 }} />
+            <input name="telefono" placeholder="Telefono" inputMode="tel" style={{ flex: 1 }} />
           </div>
 
-          {esVendedorN ? (
+          {esCampoN ? (
             <>
               <div style={{ display: 'flex', gap: 8 }}>
                 <select value={ciudadN} onChange={e => setCiudadN(e.target.value)} style={{ flex: 1 }}>
-                  <option value="">Ciudad…</option>
+                  <option value="">Ciudad / regional...</option>
                   {CIUDADES.map(c => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}
                 </select>
-                <select value={canalN} onChange={e => setCanalN(e.target.value)} style={{ flex: 1 }}>
-                  <option value="">Canal…</option>
-                  {CANALES.map(c => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}
-                </select>
+                {esVendedorN && (
+                  <select value={canalN} onChange={e => setCanalN(e.target.value)} style={{ flex: 1 }}>
+                    <option value="">Canal...</option>
+                    {CANALES.map(c => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}
+                  </select>
+                )}
               </div>
+              {esVendedorN && (
+                <select value={supervisorN} onChange={e => setSupervisorN(e.target.value)}>
+                  <option value="">Supervisor a cargo (opcional)...</option>
+                  {supervisores.map(s => <option key={s.id} value={s.id}>{s.nombre}{s.zona ? ` · ${s.zona}` : ''}</option>)}
+                </select>
+              )}
               <div className="muted" style={{ fontSize: 12 }}>
-                Ticket a asignar: <b className="mono accent">{esVendedorN && ciudadN && canalN ? (ticketPrev?.ticket ?? '…') : '— elige ciudad y canal —'}</b>
-                <span style={{ display: 'block', fontSize: 11, opacity: .8 }}>La región y las listas de precio se asignan según la ciudad y el canal (focalizado = solo Droguerías).</span>
+                Ticket a asignar: <b className="mono accent">{ciudadN && (esSupervisorN || canalN) ? (ticketPrev?.ticket ?? '...') : (esVendedorN ? '— elige ciudad y canal —' : '— elige ciudad —')}</b>
+                <span style={{ display: 'block', fontSize: 11, opacity: .8 }}>
+                  {esSupervisorN
+                    ? 'El supervisor queda a cargo de los vendedores de su region que aun no tengan supervisor.'
+                    : 'La region y las listas de precio se asignan segun la ciudad y el canal (focalizado = solo Droguerias).'}
+                </span>
               </div>
             </>
           ) : (
@@ -109,20 +127,23 @@ export function UsuariosPage() {
                 <input name="zona" placeholder="Zona / ruta (opcional)" style={{ flex: 1 }} />
               </div>
               <select name="regionId" defaultValue="">
-                <option value="">Sin región asignada</option>
-                {regiones?.map(r => <option key={r.id} value={r.id}>Región: {r.nombre}</option>)}
+                <option value="">Sin region asignada</option>
+                {regiones?.map(r => <option key={r.id} value={r.id}>Region: {r.nombre}</option>)}
               </select>
             </>
           )}
 
           <input name="meta" placeholder="Meta mensual" inputMode="numeric" defaultValue={10000000} />
-          <button className="btn" disabled={crear.isPending}>{crear.isPending ? 'Creando…' : 'Crear usuario'}</button>
+          <button className="btn" disabled={crear.isPending}>{crear.isPending ? 'Creando...' : 'Crear usuario'}</button>
           {crear.isError && <div className="error-box">{(crear.error as Error).message}</div>}
         </form>
       )}
 
       {data?.map(u => {
-        const canal = u.rol === 'VENDEDOR' ? canalDeZona(u.zona) : '';
+        const esVend = u.rol === 'VENDEDOR';
+        const canal = esVend ? canalDeZona(u.zona) : '';
+        const supervisorNombre = esVend && u.supervisorId
+          ? (supervisores.find(s => s.id === u.supervisorId)?.nombre ?? u.supervisor?.nombre ?? '') : '';
         return (
           <div key={u.id} className="card" style={{ display: 'grid', gap: 8, padding: '12px 14px', opacity: u.activo === false ? .5 : 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -139,6 +160,7 @@ export function UsuariosPage() {
                   <span className="muted">{u.zona ? ` · ${u.zona}` : ''} · @{u.usuario}</span>
                   {u.meta != null && <span className="muted"> · Meta {u.meta.toLocaleString('es-CO')}</span>}
                 </div>
+                {supervisorNombre && <div className="muted" style={{ fontSize: 11 }}>👤 Supervisor: {supervisorNombre}</div>}
               </div>
             </div>
 
@@ -151,14 +173,14 @@ export function UsuariosPage() {
                   if (v != null) {
                     const meta = Number(v.replace(/[^\d]/g, ''));
                     if (Number.isFinite(meta) && meta >= 0) actualizar.mutate({ id: u.id, meta });
-                    else alert('Meta inválida');
+                    else alert('Meta invalida');
                   }
                 }}>🎯 Meta</button>
               <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}
                 onClick={() => {
-                  const pin = prompt(`Nuevo PIN para ${u.nombre} (4-6 dígitos):`);
+                  const pin = prompt(`Nuevo PIN para ${u.nombre} (4-6 digitos):`);
                   if (pin && /^\d{4,6}$/.test(pin)) actualizar.mutate({ id: u.id, pin });
-                  else if (pin) alert('PIN inválido');
+                  else if (pin) alert('PIN invalido');
                 }}>🔑 PIN</button>
               <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12, color: u.activo === false ? 'var(--green)' : 'var(--red)' }}
                 onClick={() => actualizar.mutate({ id: u.id, activo: u.activo === false })}>
@@ -175,12 +197,15 @@ export function UsuariosPage() {
                     id: u.id,
                     nombre: String(fd.get('nombre') || '').trim() || undefined,
                     rol: String(fd.get('rol') || '') || undefined,
-                    zona: String(fd.get('zona') || ''),
+                    // Vendedor: el canal recalcula el ticket y las listas en el servidor (no se edita el ticket a mano).
+                    canal: esVend ? (String(fd.get('canal') || '') || undefined) : undefined,
+                    zona: esVend ? undefined : String(fd.get('zona') || ''),
                     documento: String(fd.get('documento') || ''),
                     ciudad: String(fd.get('ciudad') || ''),
                     telefono: String(fd.get('telefono') || ''),
                     meta: fd.get('meta') ? Number(String(fd.get('meta')).replace(/[^\d]/g, '')) : undefined,
                     regionId: String(fd.get('regionId') || '') || null,
+                    supervisorId: esVend ? (String(fd.get('supervisorId') || '') || null) : undefined,
                   });
                   setEditId(null);
                 }}>
@@ -198,12 +223,36 @@ export function UsuariosPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input name="documento" defaultValue={u.documento ?? ''} placeholder="Documento" inputMode="numeric" />
                   <input name="ciudad" defaultValue={u.ciudad ?? ''} placeholder="Ciudad" />
-                  <input name="telefono" defaultValue={u.telefono ?? ''} placeholder="Teléfono" inputMode="tel" />
+                  <input name="telefono" defaultValue={u.telefono ?? ''} placeholder="Telefono" inputMode="tel" />
                 </div>
-                <input name="zona" defaultValue={u.zona ?? ''} placeholder="Ticket / zona (ej. ARM-07-MIX)" />
+
+                {esVend ? (
+                  <>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <label style={{ flex: 1, fontSize: 11 }} className="muted">
+                        Canal (cambia ticket y listas)
+                        <select name="canal" defaultValue={canalValDeZona(u.zona)}>
+                          <option value="">— sin cambio —</option>
+                          {CANALES.map(c => <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>)}
+                        </select>
+                      </label>
+                      <label style={{ flex: 1, fontSize: 11 }} className="muted">
+                        Ticket actual
+                        <input value={u.zona ?? ''} readOnly style={{ opacity: .7 }} />
+                      </label>
+                    </div>
+                    <select name="supervisorId" defaultValue={u.supervisorId ?? ''}>
+                      <option value="">Sin supervisor asignado</option>
+                      {supervisores.map(s => <option key={s.id} value={s.id}>Supervisor: {s.nombre}{s.zona ? ` · ${s.zona}` : ''}</option>)}
+                    </select>
+                  </>
+                ) : (
+                  <input name="zona" defaultValue={u.zona ?? ''} placeholder="Ticket / zona (ej. ARM-07-SUP)" />
+                )}
+
                 <select name="regionId" defaultValue={u.region?.id ?? ''}>
-                  <option value="">Sin región asignada</option>
-                  {regiones?.map(r => <option key={r.id} value={r.id}>Región: {r.nombre}</option>)}
+                  <option value="">Sin region asignada</option>
+                  {regiones?.map(r => <option key={r.id} value={r.id}>Region: {r.nombre}</option>)}
                 </select>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn" type="submit" style={{ flex: 1 }}>Guardar cambios</button>

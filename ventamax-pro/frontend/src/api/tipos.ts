@@ -5,6 +5,7 @@ export interface Usuario {
   usuario?: string; activo?: boolean; listasPrecios?: string[];
   documento?: string | null; ciudad?: string | null; telefono?: string | null; meta?: number;
   regionId?: string | null; region?: { id: string; nombre: string } | null;
+  supervisorId?: string | null; supervisor?: { id: string; nombre: string } | null;
 }
 
 export interface Cliente {
