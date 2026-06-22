@@ -23,7 +23,7 @@ facturasRouter.get('/cola-entrega', async (_req, res, next) => {
       include: {
         cliente: { select: { id: true, nombre: true, direccion: true, barrio: true, telefono: true, lat: true, lng: true } },
         vendedor: { select: { nombre: true } },
-        items: { include: { producto: { select: { nombre: true } } } },
+        items: { include: { producto: { select: { nombre: true, iva: true } } } },
       },
     });
     res.json(datos);
@@ -40,7 +40,7 @@ facturasRouter.get('/solicitudes-revivir', requiereRol('ADMIN', 'COADMIN', 'SUPE
       include: {
         cliente: { select: { nombre: true, barrio: true, direccion: true } },
         vendedor: { select: { nombre: true } },
-        items: { include: { producto: { select: { nombre: true } } } },
+        items: { include: { producto: { select: { nombre: true, iva: true } } } },
       },
     });
     res.json(datos);
@@ -78,7 +78,7 @@ facturasRouter.get('/', async (req, res, next) => {
         include: {
           cliente: { select: { nombre: true, direccion: true, barrio: true, ciudad: true, zona: true, telefono: true } },
           vendedor: { select: { nombre: true } },
-          items: { include: { producto: { select: { nombre: true } } } },
+          items: { include: { producto: { select: { nombre: true, iva: true } } } },
         },
       }),
       db.factura.count({ where }),

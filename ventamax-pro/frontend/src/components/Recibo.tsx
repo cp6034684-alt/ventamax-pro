@@ -70,6 +70,22 @@ function textoRecibo(f: Factura): string {
     t += der('Descuento:', '-' + num(f.descuento)) + '\n';
     t += guion + '\n';
   }
+  // Desglose de IVA: los precios YA incluyen IVA, aqui se discrimina.
+  const subRec = Number(f.subtotal) || 0;
+  const totRec = Number(f.total) || 0;
+  const factorRec = subRec > 0 ? totRec / subRec : 1;
+  let ivaInc = 0;
+  f.items.forEach(i => {
+    const pct = Number((i.producto as any)?.iva ?? 0);
+    const it = Number(i.total) || 0;
+    if (pct > 0) ivaInc += it - it / (1 + pct / 100);
+  });
+  ivaInc = Math.round(ivaInc * factorRec);
+  if (ivaInc > 0) {
+    t += der('Base sin IVA:', num(totRec - ivaInc)) + '\n';
+    t += der('IVA incluido:', num(ivaInc)) + '\n';
+    t += guion + '\n';
+  }
   t += cen('*** TOTAL ***') + '\n';
   t += cen(fmtMoneda(f.total)) + '\n\n';
   if (f.vendedor?.nombre) t += cen('Vendedor: ' + f.vendedor.nombre) + '\n';

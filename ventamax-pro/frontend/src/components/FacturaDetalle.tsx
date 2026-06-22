@@ -153,6 +153,23 @@ export function FacturaDetalle({ factura, onCerrar }: { factura: Factura; onCerr
           <div className="muted" style={{ fontSize: 11 }}>
             <div>Subtotal: {fmtMoneda(factura.subtotal)}</div>
             {Number(factura.descuento) > 0 && <div>Descuento: −{fmtMoneda(factura.descuento)}</div>}
+            {(() => {
+              const sub = Number(factura.subtotal) || 0;
+              const tot = Number(factura.total) || 0;
+              const factor = sub > 0 ? tot / sub : 1;
+              let iva = 0;
+              factura.items.forEach(i => {
+                const pct = Number((i.producto as any)?.iva ?? 0);
+                const it = Number(i.total) || 0;
+                if (pct > 0) iva += it - it / (1 + pct / 100);
+              });
+              iva = Math.round(iva * factor);
+              if (iva <= 0) return null;
+              return (<>
+                <div>Base sin IVA: {fmtMoneda(tot - iva)}</div>
+                <div>IVA incluido: {fmtMoneda(iva)}</div>
+              </>);
+            })()}
           </div>
           <div style={{ textAlign: 'right' }}>
             <div className="muted" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '.5px' }}>Total</div>

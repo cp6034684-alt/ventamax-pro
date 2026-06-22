@@ -40,7 +40,7 @@ export interface Producto {
 
 export interface FacturaItem {
   productoId: string; cantidad: number; precioUnit: string; total: string;
-  producto?: { nombre: string };
+  producto?: { nombre: string; iva?: string | number };
 }
 
 export interface Factura {
