@@ -198,9 +198,12 @@ export interface Bodega {
 export interface Indicadores {
   periodo: string;
   vendedorId: string | null;
+  esFocalizado?: boolean;
   totales: {
     ventaNeta: number; pedidos: number; unidades: number; dropsize: number;
     clientesImpactados: number; clientesAsignados: number; efectividad: number; unidadesPorCliente: number;
+    clientesVisitados: number; clientesNoCompra: number; clientesRutaHoy: number;
+    marcasImpactadas: number; categoriasImpactadas: number;
   };
   porVendedor: { id: string; nombre: string; venta: number; pedidos: number; clientes: number }[];
   porCategoria: { categoria: string; unidades: number; venta: number; impactos: number }[];

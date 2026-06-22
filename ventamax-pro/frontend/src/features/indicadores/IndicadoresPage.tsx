@@ -6,6 +6,8 @@ import { fmtMoneda } from '../../api/formato';
 
 type Periodo = 'dia' | 'semana' | 'mes' | 'todo' | 'rango';
 const LABEL: Record<Periodo, string> = { dia: 'Hoy', semana: 'Semana', mes: 'Mes', todo: 'Total', rango: '📅 Rango' };
+const GRID: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 };
+const H: React.CSSProperties = { fontSize: 13, marginTop: 4 };
 
 const hoyISO = () => {
   const d = new Date();
@@ -91,23 +93,45 @@ export function IndicadoresPage() {
         </div>
       )}
 
-      {/* Tarjetas principales */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+      {/* ── Ventas ── */}
+      <strong style={H}>Ventas</strong>
+      <div style={GRID}>
         <Tarjeta etiqueta="Venta neta" valor={fmtMoneda(t?.ventaNeta ?? 0)} color="var(--green)" />
         <Tarjeta etiqueta="Pedidos (facturas)" valor={num(t?.pedidos ?? 0)} />
         <Tarjeta etiqueta="Dropsize ($/pedido)" valor={fmtMoneda(t?.dropsize ?? 0)} color="var(--accent)" />
         <Tarjeta etiqueta="Unidades" valor={num(t?.unidades ?? 0)} />
-        <Tarjeta etiqueta="Efectividad" valor={efPct} color="var(--purple)"
-          sub={t ? `${num(t.clientesImpactados)} de ${num(t.clientesAsignados)} clientes` : ''} />
-        <Tarjeta etiqueta="Clientes impactados" valor={num(t?.clientesImpactados ?? 0)} />
         <Tarjeta etiqueta="Unidades por cliente" valor={(t?.unidadesPorCliente ?? 0).toFixed(1)} />
-        {data?.tiempo && (
-          <>
+      </div>
+
+      {/* ── Cobertura (visitas) ── */}
+      <strong style={H}>Cobertura</strong>
+      <div style={GRID}>
+        <Tarjeta etiqueta="Clientes ruta hoy" valor={num(t?.clientesRutaHoy ?? 0)} />
+        <Tarjeta etiqueta="Clientes visitados" valor={num(t?.clientesVisitados ?? 0)}
+          sub={`${num(t?.clientesNoCompra ?? 0)} sin compra (causal)`} />
+        <Tarjeta etiqueta="Compraron" valor={num(t?.clientesImpactados ?? 0)} color="var(--green)" />
+        <Tarjeta etiqueta="Efectividad" valor={efPct} color="var(--purple)"
+          sub={t ? `${num(t.clientesImpactados)} de ${num(t.clientesVisitados)} visitados` : ''} />
+      </div>
+
+      {/* ── Impacto ── */}
+      <strong style={H}>Impacto</strong>
+      <div style={GRID}>
+        {data?.esFocalizado
+          ? <Tarjeta etiqueta="Categorías impactadas" valor={num(t?.categoriasImpactadas ?? 0)} color="var(--orange)" sub="vendedor focalizado" />
+          : <Tarjeta etiqueta="Marcas impactadas" valor={num(t?.marcasImpactadas ?? 0)} color="var(--orange)" />}
+      </div>
+
+      {/* ── Ruta (GPS) ── */}
+      {data?.tiempo && (
+        <>
+          <strong style={H}>Ruta (GPS)</strong>
+          <div style={GRID}>
             <Tarjeta etiqueta="Hora de inicio" valor={hora(data.tiempo.inicio)} sub={`Último: ${hora(data.tiempo.fin)}`} />
             <Tarjeta etiqueta="Horas en ruta" valor={`${data.tiempo.horas} h`} />
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Ranking por vendedor (vista global) */}
       {!!data?.porVendedor?.length && (

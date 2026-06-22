@@ -87,6 +87,50 @@ reportesRouter.get('/indicadores', async (req, res, next) => {
     const dropsize = tot.pedidos ? tot.venta / tot.pedidos : 0;
     const efectividad = asignados ? tot.clientes / asignados : 0;
 
+    // ── Cobertura del periodo ──
+    const vVend = vendedorId ? Prisma.sql`AND v."vendedorId" = ${vendedorId}` : Prisma.empty;
+    // Clientes VISITADOS = compraron (ventas) ∪ no compraron (visitas con causal).
+    const visRows = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT COUNT(*)::int AS n FROM (
+        SELECT f."clienteId" FROM facturas f
+          WHERE f.estado <> 'ANULADA' AND f."tipoDoc" = 'VENTA'
+            AND f."creadoEn" >= ${desde} AND f."creadoEn" <= ${hasta} ${fVend}
+        UNION
+        SELECT v."clienteId" FROM visitas v
+          WHERE v."creadoEn" >= ${desde} AND v."creadoEn" <= ${hasta} ${vVend}
+      ) t`);
+    const clientesVisitados = visRows[0]?.n ?? 0;
+    const ncRows = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT COUNT(DISTINCT v."clienteId")::int AS n FROM visitas v
+      WHERE v."creadoEn" >= ${desde} AND v."creadoEn" <= ${hasta} ${vVend}`);
+    const clientesNoCompra = ncRows[0]?.n ?? 0;
+    // Efectividad = clientes que compraron / clientes visitados.
+    const efectividadV = clientesVisitados ? tot.clientes / clientesVisitados : 0;
+
+    // Marcas / categorías impactadas (en las ventas del periodo).
+    const impRows = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT COUNT(DISTINCT p.marca) FILTER (WHERE p.marca IS NOT NULL AND p.marca <> '')::int AS marcas,
+             COUNT(DISTINCT p.categoria) FILTER (WHERE p.categoria IS NOT NULL AND p.categoria <> '')::int AS categorias
+      FROM factura_items i JOIN facturas f ON f.id = i."facturaId" JOIN productos p ON p.id = i."productoId"
+      WHERE f.estado <> 'ANULADA' AND f."tipoDoc" = 'VENTA'
+        AND f."creadoEn" >= ${desde} AND f."creadoEn" <= ${hasta} ${fVend}`);
+    const marcasImpactadas = impRows[0]?.marcas ?? 0;
+    const categoriasImpactadas = impRows[0]?.categorias ?? 0;
+
+    // Clientes de la ruta de HOY (día de visita = hoy) y si el vendedor es focalizado.
+    const diaHoy = diaVisitaHoy();
+    let clientesRutaHoy = 0;
+    let esFocalizado = false;
+    if (vendedorId) {
+      const yo = await db.usuario.findUnique({ where: { id: vendedorId }, select: { zona: true } });
+      esFocalizado = String(yo?.zona ?? '').toUpperCase().includes('FOC');
+      const whereRuta: any = { activo: true, diaVisita: diaHoy };
+      if (yo?.zona) whereRuta.zona = yo.zona;
+      clientesRutaHoy = await db.cliente.count({ where: whereRuta });
+    } else {
+      clientesRutaHoy = await db.cliente.count({ where: { activo: true, diaVisita: diaHoy } });
+    }
+
     // Ranking por vendedor (solo vista global)
     let porVendedor: any[] = [];
     if (!vendedorId) {
@@ -139,6 +183,7 @@ reportesRouter.get('/indicadores', async (req, res, next) => {
     res.json({
       periodo,
       vendedorId: vendedorId ?? null,
+      esFocalizado,
       totales: {
         ventaNeta: tot.venta,
         pedidos: tot.pedidos,
@@ -146,7 +191,12 @@ reportesRouter.get('/indicadores', async (req, res, next) => {
         dropsize,
         clientesImpactados: tot.clientes,
         clientesAsignados: asignados,
-        efectividad,
+        clientesVisitados,
+        clientesNoCompra,
+        clientesRutaHoy,
+        marcasImpactadas,
+        categoriasImpactadas,
+        efectividad: efectividadV,
         unidadesPorCliente: tot.clientes ? unidades / tot.clientes : 0,
       },
       porVendedor,
