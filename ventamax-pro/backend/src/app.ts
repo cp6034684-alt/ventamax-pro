@@ -12,7 +12,7 @@ import { facturasRouter } from './modules/facturas/facturas.routes';
 import { reportesRouter } from './modules/reportes/reportes.routes';
 import { proveedoresRouter } from './modules/proveedores/proveedores.routes';
 import { inventarioRouter } from './modules/inventario/inventario.routes';
-import { importarRouter } from './modules/importar/importar.routes';
+import { importarRouter, importarAutoRouter } from './modules/importar/importar.routes';
 import { gastosRouter } from './modules/gastos/gastos.routes';
 import { presenciaRouter } from './modules/presencia/presencia.routes';
 import { rastreoRouter } from './modules/rastreo/rastreo.routes';
@@ -52,6 +52,7 @@ export function crearApp() {
   app.use('/api/reportes', reportesRouter);
   app.use('/api/proveedores', proveedoresRouter);
   app.use('/api/inventario', inventarioRouter);
+  app.use('/api/importar', importarAutoRouter); // auto-import por token (antes del router con login)
   app.use('/api/importar', importarRouter);
   app.use('/api/gastos', gastosRouter);
   app.use('/api/presencia', presenciaRouter);

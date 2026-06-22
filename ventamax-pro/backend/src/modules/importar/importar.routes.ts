@@ -6,6 +6,7 @@ import { db } from '../../config/db';
 import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
 import { maxCodigoCliente } from '../clientes/codigo';
+import { env } from '../../config/env';
 
 /**
  * El frontend lee el archivo Excel con SheetJS y envía las filas como JSON.
@@ -260,11 +261,11 @@ const loteInventarioSchema = z.object({
   })).min(1).max(5000),
 });
 
-importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req, res, next) => {
-  try {
-    const bodegaId = req.body.bodegaId as string;
+async function procesarInventario(
+  bodegaId: string, filasRaw: any[], archivo: string | null, usuarioId: string | null,
+) {
     const porCodigo = new Map<string, any>();
-    for (const raw of req.body.filas as any[]) {
+    for (const raw of filasRaw) {
       const codigo = String(raw.codigo).trim();
       if (!codigo) continue;
       porCodigo.set(codigo, {
@@ -276,9 +277,9 @@ importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req
       });
     }
     const filas = [...porCodigo.values()];
-    if (!filas.length) return res.json({ actualizados: 0, creados: 0, cargaId: null });
+    if (!filas.length) return { actualizados: 0, creados: 0, cargaId: null };
 
-    const resultado = await db.$transaction(async (tx) => {
+    return await db.$transaction(async (tx) => {
       const bodega = await (tx as any).bodega.findUnique({ where: { id: bodegaId } });
       if (!bodega) throw Object.assign(new Error('Bodega no encontrada'), { status: 400, expose: true });
 
@@ -306,7 +307,7 @@ importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req
       const prevMap = new Map(sbPrev.map((s: any) => [s.productoId, s.cantidad]));
 
       const carga = await (tx as any).cargaInventario.create({
-        data: { bodegaId, usuarioId: req.usuario!.id, archivo: req.body.archivo ?? null, totalItems: conId.length },
+        data: { bodegaId, usuarioId, archivo, totalItems: conId.length },
       });
       await (tx as any).cargaInventarioItem.createMany({
         data: conId.map((f) => ({ cargaId: carga.id, productoId: f.productoId, cantidadAnterior: prevMap.get(f.productoId) ?? 0, cantidadNueva: f.cantidad })),
@@ -335,9 +336,45 @@ importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req
         WHERE p.id IN (SELECT "productoId" FROM stock_bodega WHERE "bodegaId" = ${bodegaId})`);
 
       return { actualizados: conId.length - nuevos.length, creados: nuevos.length, cargaId: carga.id };
-    }, { timeout: 120000, maxWait: 20000 });
+  }, { timeout: 120000, maxWait: 20000 });
+}
 
-    res.json(resultado);
+importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req, res, next) => {
+  try {
+    res.json(await procesarInventario(req.body.bodegaId, req.body.filas, req.body.archivo ?? null, req.usuario!.id));
+  } catch (e) { next(e); }
+});
+
+// ── Auto-import seguro (token) para actualizar inventario automáticamente ──
+// Lo usa la tarea programada (3x/día). No requiere login de usuario, solo el token.
+const importToken = (req: any, res: any, next: any) => {
+  const tok = req.headers['x-import-token'];
+  if (!env.IMPORT_TOKEN || tok !== env.IMPORT_TOKEN) return res.status(401).json({ error: 'Token invalido' });
+  next();
+};
+const loteInventarioAutoSchema = z.object({
+  region: z.string().optional(),
+  bodegaId: z.string().uuid().optional(),
+  archivo: z.string().optional(),
+  filas: z.array(z.object({
+    codigo: z.string().min(1),
+    nombre: z.string().optional(),
+    marca: z.string().optional(),
+    precioTat: z.number().min(0).optional(),
+    stock: z.number().optional(),
+  })).min(1).max(5000),
+});
+export const importarAutoRouter = Router();
+importarAutoRouter.post('/inventario-auto', importToken, validarBody(loteInventarioAutoSchema), async (req, res, next) => {
+  try {
+    let bodegaId = req.body.bodegaId as string | undefined;
+    if (!bodegaId && req.body.region) {
+      const r = await (db as any).region.findUnique({ where: { nombre: String(req.body.region).trim().toUpperCase() } });
+      if (!r?.bodegaPrincipalId) return res.status(400).json({ error: 'La region no tiene bodega principal asignada' });
+      bodegaId = r.bodegaPrincipalId as string;
+    }
+    if (!bodegaId) return res.status(400).json({ error: 'Falta bodegaId o region' });
+    res.json(await procesarInventario(bodegaId, req.body.filas, req.body.archivo ?? 'auto', null));
   } catch (e) { next(e); }
 });
 

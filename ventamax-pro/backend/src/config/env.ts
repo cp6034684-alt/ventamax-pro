@@ -9,6 +9,7 @@ const esquema = z.object({
   JWT_EXPIRA: z.string().default('12h'),
   PORT: z.coerce.number().default(4000),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  IMPORT_TOKEN: z.string().default(''), // token para el auto-import del inventario
 });
 
 export const env = esquema.parse(process.env);
