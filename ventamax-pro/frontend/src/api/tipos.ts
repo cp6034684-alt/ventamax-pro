@@ -174,9 +174,14 @@ export interface Tarea {
 export interface VendedorRastreo { id: string; nombre: string; rol: Rol; zona?: string | null; }
 export interface PosicionViva { id: string; nombre: string; rol: Rol; lat: number; lng: number; haceSegundos: number; }
 export interface PuntoRecorrido { lat: number; lng: number; creadoEn: string; }
+export interface OperacionRecorrido {
+  tipo: 'venta' | 'visita'; lat: number; lng: number; hora: string; cliente: string;
+  total?: number; refs?: number; unidades?: number; causal?: string; direccion?: string;
+}
 export interface Recorrido {
   puntos: PuntoRecorrido[];
-  resumen: { puntos: number; inicio: string | null; fin: string | null; distanciaKm: number };
+  operaciones?: OperacionRecorrido[];
+  resumen: { puntos: number; inicio: string | null; fin: string | null; distanciaKm: number; ventas?: number; visitas?: number };
 }
 
 // ── Clientes duplicados ──

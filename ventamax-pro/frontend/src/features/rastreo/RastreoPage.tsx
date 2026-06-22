@@ -15,6 +15,7 @@ const hora = (iso: string | null) =>
 export function RastreoPage() {
   const [vendedorId, setVendedorId] = useState('');
   const [fecha, setFecha] = useState(hoyISO());
+  const [verRecorrido, setVerRecorrido] = useState(true);
 
   const { data: vendedores } = useQuery({ queryKey: ['rastreo-vendedores'], queryFn: rastreoApi.vendedores });
 
@@ -50,6 +51,12 @@ export function RastreoPage() {
           <button className="btn btn-ghost" style={{ padding: '7px 11px', fontSize: 12 }}
             onClick={() => setVendedorId('')}>Ver todos</button>
         )}
+        {vendedorId && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', width: '100%' }}>
+            <input type="checkbox" checked={verRecorrido} onChange={e => setVerRecorrido(e.target.checked)} style={{ width: 'auto' }} />
+            Ver recorrido (trayecto + operaciones del día)
+          </label>
+        )}
       </div>
 
       {/* En vivo */}
@@ -70,6 +77,8 @@ export function RastreoPage() {
           <Dato etiqueta="Último punto" valor={hora(res?.fin ?? null)} />
           <Dato etiqueta="Puntos" valor={String(res?.puntos ?? 0)} />
           <Dato etiqueta="Distancia" valor={`${res?.distanciaKm ?? 0} km`} />
+          <Dato etiqueta="Ventas" valor={String(res?.ventas ?? 0)} />
+          <Dato etiqueta="No compró" valor={String(res?.visitas ?? 0)} />
           {isFetching && <span className="muted" style={{ fontSize: 11, alignSelf: 'center' }}>Cargando…</span>}
           {!isFetching && res && res.puntos === 0 && (
             <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>
@@ -79,7 +88,10 @@ export function RastreoPage() {
         </div>
       )}
 
-      <MapaRastreo vivos={vivosVista} recorrido={vendedorId ? recorrido?.puntos : undefined} alto={480} />
+      <MapaRastreo vivos={vivosVista}
+        recorrido={vendedorId && verRecorrido ? recorrido?.puntos : undefined}
+        operaciones={vendedorId && verRecorrido ? recorrido?.operaciones : undefined}
+        alto={480} />
 
       <p className="muted" style={{ fontSize: 11 }}>
         La ubicación se actualiza mientras el vendedor tiene la app abierta y con GPS permitido.
