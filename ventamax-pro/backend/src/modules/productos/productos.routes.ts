@@ -21,6 +21,16 @@ productosRouter.get('/', async (req, res, next) => {
     }
     if (req.query.categoria) where.categoria = String(req.query.categoria);
 
+    // Vendedor: sus datos para el filtro de focalizado y el stock por bodega.
+    let vend: any = null;
+    if (req.usuario?.rol === 'VENDEDOR') {
+      vend = await db.usuario.findUnique({ where: { id: req.usuario.id }, select: ({ regionId: true, zona: true } as any) });
+      // FOCALIZADO (ticket termina en -FOC): solo ve productos de la marca GENOMMA.
+      if (String(vend?.zona ?? '').toUpperCase().includes('FOC')) {
+        where.marca = { contains: 'GENOMMA', mode: 'insensitive' };
+      }
+    }
+
     const [datos, total] = await Promise.all([
       db.producto.findMany({ where, skip, take, orderBy: { nombre: 'asc' } }),
       db.producto.count({ where }),
@@ -34,10 +44,9 @@ productosRouter.get('/', async (req, res, next) => {
 
     // El VENDEDOR ve el stock de la bodega de SU región (no el total global de todas las bodegas).
     if (req.usuario?.rol === 'VENDEDOR') {
-      const u = await db.usuario.findUnique({ where: { id: req.usuario.id }, select: ({ regionId: true } as any) }) as any;
       let bodegaId: string | null = null;
-      if (u?.regionId) {
-        const r = await (db as any).region.findUnique({ where: { id: u.regionId }, select: { bodegaPrincipalId: true } });
+      if (vend?.regionId) {
+        const r = await (db as any).region.findUnique({ where: { id: vend.regionId }, select: { bodegaPrincipalId: true } });
         bodegaId = r?.bodegaPrincipalId ?? null;
       }
       if (bodegaId) {
