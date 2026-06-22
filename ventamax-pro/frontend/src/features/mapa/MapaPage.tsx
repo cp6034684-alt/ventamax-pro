@@ -23,6 +23,8 @@ export function MapaPage() {
   const [dia, setDia] = useState(esVendedor ? diaHoy : 0);
   const [selId, setSelId] = useState<string | null>(null);
   const [causales, setCausales] = useState(false);
+  // Filtro de visita (excluyente): 'todos' | 'sinVisitar' | 'visitados'
+  const [filtro, setFiltro] = useState<'todos' | 'sinVisitar' | 'visitados'>('todos');
   const qc = useQueryClient();
 
   const { data } = useQuery({
@@ -36,6 +38,11 @@ export function MapaPage() {
   });
 
   const clientes = data ?? [];
+  const visitado = (e: string) => e === 'vendido' || e === 'no_compra';
+  const clientesVista = clientes.filter(c =>
+    filtro === 'sinVisitar' ? c.estado === 'pendiente'
+    : filtro === 'visitados' ? visitado(c.estado)
+    : true);
   const sel = clientes.find(c => c.id === selId);
   const pendientes = clientes.filter(c => c.estado === 'pendiente').length;
   const vendidos = clientes.filter(c => c.estado === 'vendido').length;
@@ -60,9 +67,24 @@ export function MapaPage() {
         ))}
       </div>
 
+      {/* Casillas excluyentes: filtrar por visita (respetan los colores) */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <input type="checkbox" checked={filtro === 'sinVisitar'} style={{ width: 'auto' }}
+            onChange={e => setFiltro(e.target.checked ? 'sinVisitar' : 'todos')} />
+          Solo sin visitar
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <input type="checkbox" checked={filtro === 'visitados'} style={{ width: 'auto' }}
+            onChange={e => setFiltro(e.target.checked ? 'visitados' : 'todos')} />
+          Solo visitados (venta + no compró)
+        </label>
+        {filtro !== 'todos' && <span className="muted">Mostrando {clientesVista.length} de {clientes.length}</span>}
+      </div>
+
       <div style={{ position: 'relative' }}>
         <Mapa
-          puntos={clientes.map(c => ({ id: c.id, lat: c.lat, lng: c.lng, titulo: c.nombre, color: COLOR[c.estado] }))}
+          puntos={clientesVista.map(c => ({ id: c.id, lat: c.lat, lng: c.lng, titulo: c.nombre, color: COLOR[c.estado] }))}
           onSeleccionar={id => { setSelId(id); setCausales(false); }}
         />
 
