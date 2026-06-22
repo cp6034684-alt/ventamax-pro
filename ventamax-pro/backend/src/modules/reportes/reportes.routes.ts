@@ -219,7 +219,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
       orderBy: { creadoEn: 'asc' },
       include: {
         cliente: true,
-        vendedor: { select: { nombre: true, documento: true, zona: true } },
+        vendedor: ({ select: { nombre: true, documento: true, zona: true, supervisor: { select: { nombre: true } } } } as any),
         items: { include: { producto: true } },
       },
     });
@@ -259,6 +259,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
           codigoRuta: f.vendedor?.zona ?? '',
           vendedor: f.vendedor?.nombre ?? '',
           docVendedor: f.vendedor?.documento ?? '',
+          supervisor: (f.vendedor as any)?.supervisor?.nombre ?? '',
           codigoCliente: c.codigo ?? '',
           nombreCliente: c.razonSocial ?? c.nombre,
           fechaPrimeraCompra,

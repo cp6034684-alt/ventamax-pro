@@ -11,7 +11,7 @@ const inicioMesISO = () => { const d = new Date(); d.setDate(1); return d.toISOS
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 const COLS_DETALLE: [string, string][] = [
-  ['codigoRuta', 'Código ruta'], ['vendedor', 'Vendedor'], ['docVendedor', 'Doc. vendedor'],
+  ['codigoRuta', 'Código ruta'], ['vendedor', 'Vendedor'], ['docVendedor', 'Doc. vendedor'], ['supervisor', 'Supervisor'],
   ['codigoCliente', 'Código cliente'], ['nombreCliente', 'Nombre cliente'],
   ['fechaPrimeraCompra', 'Fecha 1ª compra'],
   ['nit', 'NIT/Documento'],
