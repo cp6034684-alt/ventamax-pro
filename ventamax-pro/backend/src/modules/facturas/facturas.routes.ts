@@ -101,6 +101,7 @@ facturasRouter.post('/', requiereRol('VENDEDOR', 'SUPERVISOR', 'ADMIN', 'COADMIN
 facturasRouter.post('/devolucion', requiereRol('VENDEDOR', 'SUPERVISOR', 'ADMIN', 'COADMIN'), validarBody(devolucionCrearSchema), async (req, res, next) => {
   try {
     const f = await crearDevolucion(req.usuario!.id, req.body);
+    registrarActividad(req.usuario!.id, 'DEVOLUCION', `Nota #${(f as any).consecutivo ?? ''}`);
     res.status(201).json(f);
   } catch (e) { next(e); }
 });
@@ -108,7 +109,9 @@ facturasRouter.post('/devolucion', requiereRol('VENDEDOR', 'SUPERVISOR', 'ADMIN'
 // POST /api/facturas/:id/devolver — devolución TOTAL/PARCIAL sobre una venta (entregador/admin)
 facturasRouter.post('/:id/devolver', requiereRol('ENTREGADOR', 'SUPERVISOR', 'ADMIN', 'COADMIN'), validarBody(devolverSchema), async (req, res, next) => {
   try {
-    res.json(await registrarDevolucion(req.usuario!.id, req.params.id, req.body));
+    const dev = await registrarDevolucion(req.usuario!.id, req.params.id, req.body);
+    registrarActividad(req.usuario!.id, 'DEVOLUCION', `Entrega devuelta`);
+    res.json(dev);
   } catch (e) { next(e); }
 });
 
@@ -149,6 +152,7 @@ facturasRouter.patch('/:id/estado', validarBody(facturaEstadoSchema), async (req
         }
         return tx.factura.update({ where: { id: f.id }, data: { estado: 'ANULADA' } });
       });
+      registrarActividad(req.usuario!.id, 'ANULACION', `Factura #${(anulada as any).consecutivo ?? ''}`);
       return res.json(anulada);
     }
 

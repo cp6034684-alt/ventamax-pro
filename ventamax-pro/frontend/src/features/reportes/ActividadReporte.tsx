@@ -14,7 +14,11 @@ const EVENTO: Record<string, { icono: string; texto: string; color: string }> = 
   LOGIN:       { icono: '🔓', texto: 'Inició sesión', color: 'var(--green)' },
   LOGOUT:      { icono: '🔒', texto: 'Cerró sesión', color: 'var(--red)' },
   VENTA:       { icono: '🧾', texto: 'Venta', color: 'var(--accent)' },
-  IMPORTACION: { icono: '📥', texto: 'Importación', color: 'var(--orange)' },
+  IMPORTACION:   { icono: '📥', texto: 'Importación', color: 'var(--orange)' },
+  CLIENTE_NUEVO: { icono: '🆕', texto: 'Cliente nuevo', color: 'var(--green)' },
+  CLIENTE_EDIT:  { icono: '✏️', texto: 'Editó cliente', color: 'var(--accent)' },
+  ANULACION:     { icono: '🚫', texto: 'Anuló factura', color: 'var(--red)' },
+  DEVOLUCION:    { icono: '↩️', texto: 'Devolución', color: 'var(--orange)' },
 };
 const ACCIONES = [
   { id: '', label: 'Todas las acciones' },
@@ -22,6 +26,10 @@ const ACCIONES = [
   { id: 'LOGOUT', label: 'Logout' },
   { id: 'VENTA', label: 'Venta' },
   { id: 'IMPORTACION', label: 'Importación' },
+  { id: 'CLIENTE_NUEVO', label: 'Cliente nuevo' },
+  { id: 'CLIENTE_EDIT', label: 'Cliente editado' },
+  { id: 'ANULACION', label: 'Anulación' },
+  { id: 'DEVOLUCION', label: 'Devolución' },
 ];
 
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });

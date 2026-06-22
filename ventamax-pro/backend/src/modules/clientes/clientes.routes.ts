@@ -6,6 +6,7 @@ import { validarBody } from '../../middleware/validate';
 import { leerPaginacion, respuestaPaginada } from '../../utils/pagination';
 import { clienteSchema, clienteUpdateSchema } from './clientes.schemas';
 import { maxCodigoCliente } from './codigo';
+import { registrarActividad } from '../../utils/actividad';
 
 export const clientesRouter = Router();
 clientesRouter.use(requiereAuth);
@@ -216,7 +217,9 @@ clientesRouter.post('/', validarBody(clienteSchema), async (req, res, next) => {
     if (!['ADMIN', 'COADMIN', 'SUPERVISOR'].includes(req.usuario!.rol)) {
       delete data.tipologia; delete data.listaPrecio;
     }
-    res.status(201).json(await db.cliente.create({ data }));
+    const creado = await db.cliente.create({ data });
+    registrarActividad(req.usuario!.id, 'CLIENTE_NUEVO', `${(creado as any).nombre ?? ''} (#${(creado as any).codigo ?? ''})`);
+    res.status(201).json(creado);
   } catch (e) { next(e); }
 });
 
@@ -228,7 +231,9 @@ clientesRouter.put('/:id', validarBody(clienteUpdateSchema), async (req, res, ne
     if (!['ADMIN', 'COADMIN', 'SUPERVISOR'].includes(req.usuario!.rol)) {
       delete data.tipologia; delete data.listaPrecio; delete data.nombre; delete data.nit;
     }
-    res.json(await db.cliente.update({ where: { id: req.params.id }, data }));
+    const actualizado = await db.cliente.update({ where: { id: req.params.id }, data });
+    registrarActividad(req.usuario!.id, 'CLIENTE_EDIT', (actualizado as any).nombre ?? '');
+    res.json(actualizado);
   } catch (e) { next(e); }
 });
 
