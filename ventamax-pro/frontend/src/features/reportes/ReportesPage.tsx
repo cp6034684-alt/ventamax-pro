@@ -5,6 +5,7 @@ import { reportesApi } from '../../api/servicios';
 import { fmtMoneda } from '../../api/formato';
 import { useAuth } from '../../auth/AuthContext';
 import { EntregasReporte } from './EntregasReporte';
+import { ActividadReporte } from './ActividadReporte';
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const inicioMesISO = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); };
@@ -87,12 +88,12 @@ export function ReportesPage() {
   const [hasta, setHasta] = useState(hoyISO());
   const [exportando, setExportando] = useState(false);
 
-  const usaRango = ['ventas', 'rentab', 'finanzas', 'actividad', 'excel', 'kpos'].includes(tab);
+  const usaRango = ['ventas', 'rentab', 'finanzas', 'excel', 'kpos'].includes(tab);
 
   const { data: resumen } = useQuery({
     queryKey: ['rep-resumen', desde, hasta],
     queryFn: () => reportesApi.resumen(desde, hasta),
-    enabled: esGestion && ['ventas', 'finanzas', 'actividad'].includes(tab),
+    enabled: esGestion && ['ventas', 'finanzas'].includes(tab),
   });
   const { data: cartera } = useQuery({
     queryKey: ['rep-cartera'], queryFn: reportesApi.cartera,
@@ -278,20 +279,7 @@ export function ReportesPage() {
         </div>
       )}
 
-      {tab === 'actividad' && (
-        <div className="card">
-          <strong style={{ fontSize: 13 }}>Actividad por vendedor</strong>
-          {resumen?.porVendedor.map((v, i) => (
-            <div key={v.vendedorId} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13, alignItems: 'center' }}>
-              <span className="mono muted" style={{ width: 22 }}>{i + 1}</span>
-              <span style={{ flex: 1 }}>{v.nombre}</span>
-              <span className="muted" style={{ fontSize: 11 }}>{v._count} pedidos</span>
-              <span className="mono green">{fmtMoneda(v._sum.total)}</span>
-            </div>
-          ))}
-          {resumen && !resumen.porVendedor.length && <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>Sin actividad en el rango.</p>}
-        </div>
-      )}
+      {tab === 'actividad' && <ActividadReporte />}
 
       {PENDIENTES[tab] && (
         <div className="card" style={{ textAlign: 'center', padding: '24px 16px' }}>

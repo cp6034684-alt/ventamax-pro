@@ -299,6 +299,27 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
   } catch (e) { next(e); }
 });
 
+// GET /api/reportes/actividad?usuarioId=&tipo=&limit= — log de eventos (LOGIN/LOGOUT/VENTA/IMPORTACION)
+reportesRouter.get('/actividad', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const where: any = {};
+    if (req.query.usuarioId) where.usuarioId = String(req.query.usuarioId);
+    if (req.query.tipo) where.tipo = String(req.query.tipo);
+    const limit = Math.min(Number(req.query.limit) || 1000, 2000);
+    const eventos = await (db as any).actividad.findMany({
+      where,
+      orderBy: { creadoEn: 'desc' },
+      take: limit,
+      select: { id: true, tipo: true, detalle: true, creadoEn: true, usuario: { select: { nombre: true, zona: true, rol: true } } },
+    });
+    res.json(eventos.map((e: any) => ({
+      id: e.id, tipo: e.tipo, detalle: e.detalle, creadoEn: e.creadoEn,
+      nombre: e.usuario?.nombre ?? '—',
+      alcance: e.usuario?.zona || (e.usuario?.rol && ['ADMIN', 'COADMIN'].includes(e.usuario.rol) ? 'Todas' : ''),
+    })));
+  } catch (e) { next(e); }
+});
+
 // GET /api/reportes/resumen?desde=&hasta= — agregados generales (ADMIN/COADMIN)
 // Con 450k facturas/mes los reportes se calculan en la base de datos
 // con agregaciones SQL — jamás descargando todo al frontend.

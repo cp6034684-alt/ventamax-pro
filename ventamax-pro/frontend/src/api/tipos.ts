@@ -23,6 +23,8 @@ export interface ClienteDetalle extends Cliente {
 
 export interface BarrioFaceta { barrio: string; total: number; }
 
+export interface Actividad { id: string; tipo: string; detalle?: string | null; creadoEn: string; nombre: string; alcance?: string; }
+
 export type EstadoMapa = 'pendiente' | 'vendido' | 'no_compra';
 export interface ClienteMapa {
   id: string; nombre: string; codigo?: number; direccion?: string; barrio?: string;

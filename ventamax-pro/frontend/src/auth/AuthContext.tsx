@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { setToken, getToken, onSesionExpirada } from '../api/client';
+import { authApi } from '../api/servicios';
 import type { Usuario } from '../api/tipos';
 
 interface AuthCtx {
@@ -26,6 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const cerrarSesion = () => {
+    // Registra el cierre de sesion con el token actual antes de limpiarlo (fire-and-forget).
+    authApi.logout().catch(() => {});
     setToken(null);
     sessionStorage.removeItem('vm_usuario');
     setUsuario(null);

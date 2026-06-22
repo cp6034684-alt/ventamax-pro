@@ -7,6 +7,7 @@ import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
 import { maxCodigoCliente } from '../clientes/codigo';
 import { env } from '../../config/env';
+import { registrarActividad } from '../../utils/actividad';
 
 /**
  * El frontend lee el archivo Excel con SheetJS y envía las filas como JSON.
@@ -72,6 +73,7 @@ importarRouter.post('/clientes', validarBody(loteClientesSchema), async (req, re
       data = data.map((f: any, i: number) => ({ ...f, codigo: base + i + 1 }));
     }
     const r = await db.cliente.createMany({ data });
+    registrarActividad(req.usuario!.id, 'IMPORTACION', `Clientes: ${r.count}`);
     res.status(201).json({ insertados: r.count });
   } catch (e) { next(e); }
 });
@@ -126,6 +128,7 @@ importarRouter.post('/productos', validarBody(loteProductosSchema), async (req, 
     }));
     // skipDuplicates evita chocar con códigos de barras repetidos
     const r = await db.producto.createMany({ data, skipDuplicates: true });
+    registrarActividad(req.usuario!.id, 'IMPORTACION', `Productos: ${r.count}`);
     res.status(201).json({ insertados: r.count, omitidos: data.length - r.count });
   } catch (e) { next(e); }
 });

@@ -7,6 +7,7 @@ import { validarBody } from '../../middleware/validate';
 import { leerPaginacion, respuestaPaginada } from '../../utils/pagination';
 import { facturaCrearSchema, facturaEstadoSchema, devolucionCrearSchema, devolverSchema, facturaEditarSchema } from './facturas.schemas';
 import { crearFactura, crearDevolucion, registrarDevolucion, revivirEntrega, editarFactura, bodegaDeVendedor, ajustarBodega } from './facturas.service';
+import { registrarActividad } from '../../utils/actividad';
 
 const abonoSchema = z.object({ monto: z.number().positive() });
 
@@ -91,6 +92,7 @@ facturasRouter.get('/', async (req, res, next) => {
 facturasRouter.post('/', requiereRol('VENDEDOR', 'SUPERVISOR', 'ADMIN', 'COADMIN'), validarBody(facturaCrearSchema), async (req, res, next) => {
   try {
     const { factura, duplicada } = await crearFactura(req.usuario!.id, req.body);
+    if (!duplicada) registrarActividad(req.usuario!.id, 'VENTA', `Factura #${(factura as any).consecutivo ?? ''} · $${Math.round(Number((factura as any).total ?? 0)).toLocaleString('es-CO')}`);
     res.status(duplicada ? 200 : 201).json(factura);
   } catch (e) { next(e); }
 });

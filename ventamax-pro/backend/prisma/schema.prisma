@@ -49,6 +49,7 @@ model Usuario {
   region    Region?    @relation(fields: [regionId], references: [id])
   supervisor Usuario?  @relation("equipo", fields: [supervisorId], references: [id])
   acargo    Usuario[] @relation("equipo")
+  actividades Actividad[]
 
   @@index([rol, activo])
   @@map("usuarios")
@@ -367,4 +368,17 @@ model CargaInventarioItem {
 
   @@index([cargaId])
   @@map("cargas_inventario_items")
+}
+
+model Actividad {
+  id        String   @id @default(uuid())
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+  tipo      String   // LOGIN | LOGOUT | VENTA | IMPORTACION
+  detalle   String?
+  creadoEn  DateTime @default(now())
+
+  @@index([creadoEn])
+  @@index([usuarioId])
+  @@map("actividades")
 }

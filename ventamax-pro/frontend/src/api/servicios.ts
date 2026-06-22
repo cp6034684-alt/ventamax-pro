@@ -13,6 +13,7 @@ export const authApi = {
       method: 'POST', body: JSON.stringify({ usuario, pin }),
     }),
   yo: () => api<Usuario & { usuario: string; creadoEn: string }>('/auth/yo'),
+  logout: () => api<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   cambiarPin: (pinActual: string, pinNuevo: string) =>
     api<{ ok: boolean }>('/auth/mi-pin', { method: 'PATCH', body: JSON.stringify({ pinActual, pinNuevo }) }),
 };
@@ -140,6 +141,13 @@ export const reportesApi = {
     const q = new URLSearchParams();
     Object.entries(p).forEach(([k, v]) => { if (v) q.set(k, String(v)); });
     return api<Indicadores>(`/reportes/indicadores?${q.toString()}`);
+  },
+  actividad: (p: { usuarioId?: string; tipo?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (p.usuarioId) q.set('usuarioId', p.usuarioId);
+    if (p.tipo) q.set('tipo', p.tipo);
+    if (p.limit) q.set('limit', String(p.limit));
+    return api<import('./tipos').Actividad[]>(`/reportes/actividad?${q.toString()}`);
   },
   rentabilidad: (periodo: string, desde?: string, hasta?: string) => {
     const q = new URLSearchParams({ periodo });

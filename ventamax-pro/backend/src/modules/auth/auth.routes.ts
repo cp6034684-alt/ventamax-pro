@@ -6,6 +6,7 @@ import { requiereAuth } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
 import { loginSchema } from './auth.schemas';
 import * as servicio from './auth.service';
+import { registrarActividad } from '../../utils/actividad';
 
 export const authRouter = Router();
 
@@ -14,8 +15,15 @@ authRouter.post('/login', validarBody(loginSchema), async (req, res, next) => {
   try {
     const resultado = await servicio.login(req.body.usuario, req.body.pin);
     if (!resultado) return res.status(401).json({ error: 'Usuario o PIN incorrecto' });
+    registrarActividad(resultado.usuario.id, 'LOGIN');
     res.json(resultado);
   } catch (e) { next(e); }
+});
+
+// POST /api/auth/logout — registra el cierre de sesion
+authRouter.post('/logout', requiereAuth, async (req, res) => {
+  registrarActividad(req.usuario!.id, 'LOGOUT');
+  res.json({ ok: true });
 });
 
 // GET /api/auth/yo — datos del usuario autenticado
