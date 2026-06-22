@@ -188,7 +188,9 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
         const p: any = it.producto;
         const valorTotal = Number(it.total);
         const ivaPct = Number(p.iva ?? 0);
-        const ivaValor = Math.round(valorTotal * ivaPct) / 100;
+        // Los precios YA incluyen IVA: se desglosa, no se suma encima.
+        const baseSinIva = ivaPct > 0 ? valorTotal / (1 + ivaPct / 100) : valorTotal;
+        const ivaValor = Math.round((valorTotal - baseSinIva) * 100) / 100;
         const costoUnit = Number(p.precioCompra ?? 0);
 
         filas.push({
@@ -222,7 +224,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
           valorTotal,
           ivaPct,
           ivaValor,
-          valorConIva: valorTotal + ivaValor,
+          valorConIva: valorTotal,
           totalFactura: Number(f.total),
           valorNota: esDev ? valorTotal : 0,
         });

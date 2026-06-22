@@ -104,6 +104,8 @@ export const importarApi = {
   listasCliente: (filas: any[]) => api<{ actualizados: number; listas: number; invalidas: number }>('/importar/listas-cliente', { method: 'POST', body: JSON.stringify({ filas }) }),
   inventario: (bodegaId: string, filas: any[], archivo?: string) => api<{ actualizados: number; creados: number; cargaId: string | null }>('/importar/inventario', { method: 'POST', body: JSON.stringify({ bodegaId, filas, archivo }) }),
   revertirCarga: (id: string) => api<{ revertida: boolean; items: number }>(`/importar/inventario/cargas/${id}/revertir`, { method: 'POST' }),
+  precios: (filas: any[]) => api<{ actualizados: number; recibidos: number }>('/importar/precios', { method: 'POST', body: JSON.stringify({ filas }) }),
+
 };
 
 export const usuariosApi = {

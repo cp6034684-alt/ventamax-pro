@@ -128,6 +128,62 @@ importarRouter.post('/productos', validarBody(loteProductosSchema), async (req, 
   } catch (e) { next(e); }
 });
 
+// ── Actualizar PRECIOS + IVA de productos EXISTENTES por código ──
+// No toca el stock. Reemplaza las listas de precio y el % de IVA por referencia.
+const lotePreciosSchema = z.object({
+  filas: z.array(z.object({
+    codigo: z.string().min(1),
+    precioGeneral: z.number().min(0).optional(),
+    precioMayorista: z.number().min(0).optional(),
+    precioTat: z.number().min(0).optional(),
+    precioDroguerias: z.number().min(0).optional(),
+    precioVenta: z.number().min(0).optional(),
+    iva: z.number().min(0).optional(),
+  })).min(1).max(5000),
+});
+
+importarRouter.post('/precios', validarBody(lotePreciosSchema), async (req, res, next) => {
+  try {
+    const porCodigo = new Map<string, any>();
+    for (const raw of req.body.filas as any[]) {
+      const codigo = String(raw.codigo).trim();
+      if (!codigo) continue;
+      const n = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+      porCodigo.set(codigo, {
+        codigo,
+        gen: n(raw.precioGeneral), may: n(raw.precioMayorista),
+        tat: n(raw.precioTat), drog: n(raw.precioDroguerias),
+        venta: n(raw.precioVenta) ?? n(raw.precioTat),
+        iva: n(raw.iva),
+      });
+    }
+    const filas = [...porCodigo.values()];
+    if (!filas.length) return res.json({ actualizados: 0, recibidos: 0 });
+
+    const codigos = filas.map((f) => f.codigo);
+    const gen = filas.map((f) => f.gen);
+    const may = filas.map((f) => f.may);
+    const tat = filas.map((f) => f.tat);
+    const drog = filas.map((f) => f.drog);
+    const venta = filas.map((f) => f.venta);
+    const ivas = filas.map((f) => f.iva);
+
+    const r = await db.$executeRaw(Prisma.sql`
+      UPDATE productos AS p SET
+        "precioGeneral"    = COALESCE(d.gen,   p."precioGeneral"),
+        "precioMayorista"  = COALESCE(d.may,   p."precioMayorista"),
+        "precioTat"        = COALESCE(d.tat,   p."precioTat"),
+        "precioDroguerias" = COALESCE(d.drog,  p."precioDroguerias"),
+        "precioVenta"      = COALESCE(d.venta, p."precioVenta"),
+        iva                = COALESCE(d.iva,   p.iva)
+      FROM unnest(${codigos}::text[], ${gen}::numeric[], ${may}::numeric[], ${tat}::numeric[], ${drog}::numeric[], ${venta}::numeric[], ${ivas}::numeric[])
+        AS d(codigo, gen, may, tat, drog, venta, iva)
+      WHERE p.codigo = d.codigo`);
+
+    res.json({ actualizados: r, recibidos: filas.length });
+  } catch (e) { next(e); }
+});
+
 // ── Inventario por bodega (informe de bodega) ─────────────────
 // Actualiza la EXISTENCIA por bodega + precio/marca por REFERENCIA(codigo),
 // registra la carga (para poder devolverla) y recalcula el total del producto.

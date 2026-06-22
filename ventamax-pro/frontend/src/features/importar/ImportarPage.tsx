@@ -3,13 +3,14 @@ import * as XLSX from 'xlsx';
 import { importarApi, bodegasApi } from '../../api/servicios';
 import type { Bodega } from '../../api/tipos';
 
-type Tipo = 'clientes' | 'productos' | 'listas' | 'inventario';
+type Tipo = 'clientes' | 'productos' | 'listas' | 'inventario' | 'precios';
 
 const DESCRIPCION: Record<Tipo, string> = {
   clientes: 'Carga clientes nuevos a la base de datos.',
   productos: '⚠️ Solo para la carga INICIAL del catálogo. Crea productos nuevos; si el código ya existe, lo OMITE (no lo actualiza).',
   inventario: '📥 Uso diario: actualiza la EXISTENCIA y el PRECIO de cada producto según el informe de bodega, y crea las referencias nuevas.',
   listas: 'Asigna a cada cliente su lista de precios (lo busca por NIT; no crea clientes).',
+  precios: '💲 Actualiza las listas de precio y el % de IVA de productos EXISTENTES (los busca por código). No toca el stock ni crea productos.',
 };
 
 const COLUMNAS: Record<Tipo, string> = {
@@ -17,6 +18,7 @@ const COLUMNAS: Record<Tipo, string> = {
   productos: 'codigo, nombre*, marca, categoria, linea, segmento, subsegmento, unidad, iva, precioCompra, precioGeneral, precioMayorista, precioTat, precioDroguerias, precioTatViajeros, precioEntreSede, stock',
   listas: 'nit, listaPrecio (tipologia opcional) — actualiza la lista de los clientes existentes por NIT',
   inventario: 'REFERENCIA, DETALLE, MARCA, TAT, SALDO — informe de bodega: actualiza existencia y precio por referencia',
+  precios: 'codigo, precioGeneral, precioMayorista, precioTat, precioDroguerias, iva — actualiza precios e IVA por código',
 };
 
 // El código del cliente lo genera el sistema (VMX-####), por eso no se importa.
@@ -111,7 +113,7 @@ export function ImportarPage() {
         }
       }
       return fila;
-    }).filter(f => tipo === 'listas' ? (f.nit && f.listaPrecio) : tipo === 'inventario' ? (f.codigo && f.nombre) : f.nombre);
+    }).filter(f => tipo === 'listas' ? (f.nit && f.listaPrecio) : tipo === 'inventario' ? (f.codigo && f.nombre) : tipo === 'precios' ? !!f.codigo : f.nombre);
 
     let finales = limpias;
     if (tipo === 'listas') {
@@ -163,6 +165,9 @@ export function ImportarPage() {
           const r = await importarApi.inventario(bodegaId, bloque, nombreArchivo);
           actualizados += r.actualizados; creados += r.creados;
           if (r.cargaId) setUltimaCarga(r.cargaId);
+        } else if (tipo === 'precios') {
+          const r = await importarApi.precios(bloque);
+          actualizados += r.actualizados;
         } else {
           const r: { insertados: number; omitidos?: number } = tipo === 'clientes'
             ? await importarApi.clientes(bloque, asignarCodigo)
@@ -173,6 +178,7 @@ export function ImportarPage() {
         setResultado(`Importando… ${Math.min(i + LOTE, filas.length)} / ${filas.length}`);
       }
       if (tipo === 'inventario') { const nb = bodegas.find(b => b.id === bodegaId)?.nombre ?? ''; setResultado(`✅ Inventario en ${nb}: ${actualizados} actualizado(s), ${creados} nuevo(s)`); }
+      else if (tipo === 'precios') setResultado(`✅ ${actualizados} producto(s) con precio/IVA actualizado(s)`);
       else setResultado(`✅ ${insertados} fila(s) importada(s)${omitidos ? ` · ${omitidos} omitida(s) por código duplicado` : ''}`);
       setFilas([]);
     } catch (e: any) {
@@ -191,10 +197,10 @@ export function ImportarPage() {
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', gap: 6 }}>
-        {(['clientes', 'productos', 'inventario', 'listas'] as Tipo[]).map(t => (
+        {(['clientes', 'productos', 'inventario', 'precios', 'listas'] as Tipo[]).map(t => (
           <button key={t} className={`btn ${tipo === t ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 13 }}
             onClick={() => { setTipo(t); setFilas([]); setResultado(''); }}>
-            {t === 'clientes' ? '👥 Clientes' : t === 'productos' ? '📦 Productos' : t === 'inventario' ? '📥 Inventario' : '🏷️ Listas'}
+            {t === 'clientes' ? '👥 Clientes' : t === 'productos' ? '📦 Productos' : t === 'inventario' ? '📥 Inventario' : t === 'precios' ? '💲 Precios' : '🏷️ Listas'}
           </button>
         ))}
       </div>

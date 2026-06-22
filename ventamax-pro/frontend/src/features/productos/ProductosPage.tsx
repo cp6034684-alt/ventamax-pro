@@ -5,6 +5,178 @@ import { useAuth } from '../../auth/AuthContext';
 import { fmtMoneda } from '../../api/formato';
 import type { Producto } from '../../api/tipos';
 
+type PreciosState = {
+  precioCompra: number; iva: number;
+  precioGeneral: number; precioMayorista: number; precioTat: number;
+  precioDroguerias: number; precioTatViajeros: number; precioEntreSede: number;
+  precioVenta: number;
+};
+
+// Listas de precio del sistema. El precio guardado YA incluye IVA (igual que la app base).
+const LISTAS: [keyof PreciosState, string][] = [
+  ['precioGeneral', 'General'],
+  ['precioMayorista', 'Mayorista'],
+  ['precioTat', 'TAT'],
+  ['precioDroguerias', 'Droguerías'],
+  ['precioTatViajeros', 'TAT Viajeros'],
+  ['precioEntreSede', 'Entre Sede'],
+];
+
+function num(v: any): number { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
+// ── Formulario de creación/edición con desglose de IVA y rentabilidad ──
+function ProductoForm({ editando, onGuardar, guardando }: {
+  editando: Producto | null;
+  onGuardar: (datos: any) => void;
+  guardando: boolean;
+}) {
+  // El precio de lista YA incluye IVA. El costo NO incluye IVA.
+  const [p, setP] = useState<PreciosState>(() => ({
+    precioCompra: num(editando?.precioCompra),
+    iva: editando?.iva != null ? num(editando.iva) : 19,
+    precioGeneral: num(editando?.precioGeneral),
+    precioMayorista: num(editando?.precioMayorista),
+    precioTat: num(editando?.precioTat),
+    precioDroguerias: num(editando?.precioDroguerias),
+    precioTatViajeros: num(editando?.precioTatViajeros),
+    precioEntreSede: num(editando?.precioEntreSede),
+    precioVenta: num(editando?.precioVenta),
+  }));
+  const set = (k: keyof PreciosState) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setP(s => ({ ...s, [k]: num(e.target.value) }));
+
+  // Cálculos (precio con IVA incluido)
+  const iva = p.iva || 0;
+  const costoConIva = p.precioCompra * (1 + iva / 100);
+  const desglose = (precioConIva: number) => {
+    const base = iva > 0 ? precioConIva / (1 + iva / 100) : precioConIva; // precio sin IVA
+    const valorIva = precioConIva - base;
+    const rent = precioConIva > 0 ? ((precioConIva - costoConIva) / precioConIva) * 100 : 0;
+    return { base, valorIva, rent };
+  };
+
+  const enviar = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const datos: any = {
+      nombre: String(fd.get('nombre')),
+      codigo: String(fd.get('codigo') || '') || undefined,
+      categoria: String(fd.get('categoria') || '') || undefined,
+      marca: String(fd.get('marca') || '') || undefined,
+      linea: String(fd.get('linea') || '') || undefined,
+      segmento: String(fd.get('segmento') || '') || undefined,
+      subsegmento: String(fd.get('subsegmento') || '') || undefined,
+      unidad: String(fd.get('unidad') || '') || undefined,
+      iva: p.iva || undefined,
+      precioCompra: p.precioCompra,
+      precioGeneral: p.precioGeneral || undefined,
+      precioMayorista: p.precioMayorista || undefined,
+      precioTat: p.precioTat || undefined,
+      precioDroguerias: p.precioDroguerias || undefined,
+      precioTatViajeros: p.precioTatViajeros || undefined,
+      precioEntreSede: p.precioEntreSede || undefined,
+      precioVenta: p.precioVenta || p.precioTat || 0,
+      stockMinimo: num(fd.get('stockMinimo')),
+    };
+    if (!editando) datos.stock = num(fd.get('stock'));
+    onGuardar(datos);
+  };
+
+  const moneda0 = (n: number) => fmtMoneda(Math.round(n));
+
+  return (
+    <form className="card" style={{ display: 'grid', gap: 10 }} onSubmit={enviar}>
+      <strong style={{ fontSize: 13 }}>{editando ? `Editar: ${editando.nombre}` : 'Nuevo producto'}</strong>
+      <input name="nombre" placeholder="Nombre *" defaultValue={editando?.nombre} required />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input name="codigo" placeholder="Código / SKU" defaultValue={editando?.codigo} />
+        <input name="marca" placeholder="Marca" defaultValue={editando?.marca ?? ''} />
+        <input name="categoria" placeholder="Categoría" defaultValue={editando?.categoria} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input name="linea" placeholder="Línea" defaultValue={editando?.linea ?? ''} />
+        <input name="segmento" placeholder="Segmento" defaultValue={editando?.segmento ?? ''} />
+        <input name="subsegmento" placeholder="Subsegmento" defaultValue={editando?.subsegmento ?? ''} />
+      </div>
+      <input name="unidad" placeholder="Unidad" defaultValue={editando?.unidad} />
+
+      {/* Costo + IVA */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <label style={{ flex: 1, fontSize: 11 }} className="muted">
+          Costo (sin IVA)
+          <input type="number" value={p.precioCompra || ''} onChange={set('precioCompra')} min={0} placeholder="Costo" />
+        </label>
+        <label style={{ width: 110, fontSize: 11 }} className="muted">
+          % IVA
+          <input type="number" value={p.iva} onChange={set('iva')} min={0} max={100} placeholder="19" />
+        </label>
+      </div>
+      <div className="muted" style={{ fontSize: 11 }}>
+        Costo con IVA: <b style={{ color: 'var(--text)' }}>{moneda0(costoConIva)}</b>
+        <span style={{ marginLeft: 6, opacity: .8 }}>(los precios de lista ya incluyen IVA)</span>
+      </div>
+
+      {/* Listas de precio (incluyen IVA) */}
+      <div className="muted" style={{ fontSize: 11, fontWeight: 700 }}>Listas de precio (precio al público, IVA incluido)</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {LISTAS.map(([k, etq]) => (
+          <label key={k} style={{ fontSize: 11 }} className="muted">
+            {etq}
+            <input type="number" value={(p[k] as number) || ''} onChange={set(k)} min={0} placeholder={etq} />
+          </label>
+        ))}
+      </div>
+
+      {/* Desglose por lista: IVA y rentabilidad */}
+      <div style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, overflowX: 'auto' }}>
+        <div className="muted" style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>DESGLOSE (IVA {iva}% incluido)</div>
+        <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', minWidth: 360 }}>
+          <thead>
+            <tr style={{ color: 'var(--muted)', textAlign: 'right' }}>
+              <th style={{ textAlign: 'left', fontWeight: 600 }}>Lista</th>
+              <th style={{ fontWeight: 600 }}>Público c/IVA</th>
+              <th style={{ fontWeight: 600 }}>Base sin IVA</th>
+              <th style={{ fontWeight: 600 }}>Valor IVA</th>
+              <th style={{ fontWeight: 600 }}>Rentab.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {LISTAS.map(([k, etq]) => {
+              const precio = (p[k] as number) || 0;
+              if (!precio) return null;
+              const d = desglose(precio);
+              const malo = d.rent < 0;
+              return (
+                <tr key={k} style={{ textAlign: 'right' }}>
+                  <td style={{ textAlign: 'left' }}>{etq}</td>
+                  <td className="mono">{moneda0(precio)}</td>
+                  <td className="mono" style={{ opacity: .8 }}>{moneda0(d.base)}</td>
+                  <td className="mono" style={{ opacity: .8 }}>{moneda0(d.valorIva)}</td>
+                  <td className="mono" style={{ fontWeight: 700, color: malo ? 'var(--red)' : 'var(--green)' }}>
+                    {d.rent.toFixed(1)}%
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <label style={{ fontSize: 11 }} className="muted">
+        Precio por defecto (si lo dejas vacío usa TAT)
+        <input type="number" value={p.precioVenta || ''} onChange={set('precioVenta')} min={0} />
+      </label>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        {!editando && <input name="stock" type="number" placeholder="Stock inicial" min={0} />}
+        <input name="stockMinimo" type="number" placeholder="Stock mínimo" defaultValue={editando?.stockMinimo} min={0} />
+      </div>
+      {editando && <p className="muted" style={{ fontSize: 11 }}>El stock se modifica desde Inventario (entradas/ajustes), no aquí.</p>}
+      <button className="btn" disabled={guardando}>{editando ? 'Actualizar' : 'Guardar producto'}</button>
+    </form>
+  );
+}
+
 export function ProductosPage() {
   const [busqueda, setBusqueda] = useState('');
   const [editando, setEditando] = useState<Producto | null>(null);
@@ -25,31 +197,7 @@ export function ProductosPage() {
   });
   const eliminar = useMutation({ mutationFn: productosApi.eliminar, onSuccess: invalidar });
 
-  const guardar = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const datos: any = {
-      nombre: String(fd.get('nombre')),
-      codigo: String(fd.get('codigo') || '') || undefined,
-      categoria: String(fd.get('categoria') || '') || undefined,
-      marca: String(fd.get('marca') || '') || undefined,
-      linea: String(fd.get('linea') || '') || undefined,
-      segmento: String(fd.get('segmento') || '') || undefined,
-      subsegmento: String(fd.get('subsegmento') || '') || undefined,
-      unidad: String(fd.get('unidad') || '') || undefined,
-      iva: Number(fd.get('iva') || 0) || undefined,
-      precioCompra: Number(fd.get('precioCompra') || 0),
-      precioGeneral: Number(fd.get('precioGeneral') || 0) || undefined,
-      precioMayorista: Number(fd.get('precioMayorista') || 0) || undefined,
-      precioTat: Number(fd.get('precioTat') || 0) || undefined,
-      precioDroguerias: Number(fd.get('precioDroguerias') || 0) || undefined,
-      precioTatViajeros: Number(fd.get('precioTatViajeros') || 0) || undefined,
-      precioEntreSede: Number(fd.get('precioEntreSede') || 0) || undefined,
-      // Precio por defecto: el que pongan, o el de la lista TAT
-      precioVenta: Number(fd.get('precioVenta') || 0) || Number(fd.get('precioTat') || 0) || 0,
-      stockMinimo: Number(fd.get('stockMinimo') || 0),
-    };
-    if (!editando) datos.stock = Number(fd.get('stock') || 0);
+  const onGuardar = (datos: any) => {
     editando ? actualizar.mutate({ id: editando.id, ...datos }) : crear.mutate(datos);
   };
 
@@ -61,41 +209,8 @@ export function ProductosPage() {
       </div>
 
       {esAdmin && (mostrarForm || editando) && (
-        <form key={editando?.id ?? 'nuevo'} className="card" style={{ display: 'grid', gap: 10 }} onSubmit={guardar}>
-          <strong style={{ fontSize: 13 }}>{editando ? `Editar: ${editando.nombre}` : 'Nuevo producto'}</strong>
-          <input name="nombre" placeholder="Nombre *" defaultValue={editando?.nombre} required />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input name="codigo" placeholder="Código / SKU" defaultValue={editando?.codigo} />
-            <input name="marca" placeholder="Marca" defaultValue={editando?.marca ?? ''} />
-            <input name="categoria" placeholder="Categoría" defaultValue={editando?.categoria} />
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input name="linea" placeholder="Línea" defaultValue={editando?.linea ?? ''} />
-            <input name="segmento" placeholder="Segmento" defaultValue={editando?.segmento ?? ''} />
-            <input name="subsegmento" placeholder="Subsegmento" defaultValue={editando?.subsegmento ?? ''} />
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input name="unidad" placeholder="Unidad" defaultValue={editando?.unidad} />
-            <input name="iva" type="number" placeholder="% IVA" defaultValue={editando?.iva} min={0} max={100} style={{ maxWidth: 110 }} />
-          </div>
-          <input name="precioCompra" type="number" placeholder="Costo (precio compra)" defaultValue={editando?.precioCompra} min={0} />
-          <div className="muted" style={{ fontSize: 11, fontWeight: 700 }}>Listas de precio</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <input name="precioGeneral" type="number" placeholder="General" defaultValue={editando?.precioGeneral} min={0} />
-            <input name="precioMayorista" type="number" placeholder="Mayorista" defaultValue={editando?.precioMayorista} min={0} />
-            <input name="precioTat" type="number" placeholder="TAT" defaultValue={editando?.precioTat} min={0} />
-            <input name="precioDroguerias" type="number" placeholder="Droguerías" defaultValue={editando?.precioDroguerias} min={0} />
-            <input name="precioTatViajeros" type="number" placeholder="TAT Viajeros" defaultValue={editando?.precioTatViajeros} min={0} />
-            <input name="precioEntreSede" type="number" placeholder="Entre Sede" defaultValue={editando?.precioEntreSede} min={0} />
-          </div>
-          <input name="precioVenta" type="number" placeholder="Precio por defecto (si lo dejas vacío usa TAT)" defaultValue={editando?.precioVenta} min={0} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            {!editando && <input name="stock" type="number" placeholder="Stock inicial" min={0} />}
-            <input name="stockMinimo" type="number" placeholder="Stock mínimo" defaultValue={editando?.stockMinimo} min={0} />
-          </div>
-          {editando && <p className="muted" style={{ fontSize: 11 }}>El stock se modifica desde Inventario (entradas/ajustes), no aquí — así queda trazado cada movimiento.</p>}
-          <button className="btn">{editando ? 'Actualizar' : 'Guardar producto'}</button>
-        </form>
+        <ProductoForm key={editando?.id ?? 'nuevo'} editando={editando} onGuardar={onGuardar}
+          guardando={crear.isPending || actualizar.isPending} />
       )}
 
       {isLoading && <p className="muted">Cargando…</p>}
