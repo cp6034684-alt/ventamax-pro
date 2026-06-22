@@ -12,8 +12,8 @@ const NAV_POR_ROL: Record<Rol, NavItem[]> = {
     { ruta: '/', icono: '📊', etiqueta: 'INICIO' },
     { ruta: '/venta', icono: '🧾', etiqueta: 'VENDER' },
     { ruta: '/clientes', icono: '👥', etiqueta: 'CLIENTES' },
+    { ruta: '/mi-inventario', icono: '📦', etiqueta: 'INVENTARIO' },
     { ruta: '/mapa', icono: '🗺', etiqueta: 'MAPA' },
-    { ruta: '/indicadores', icono: '📈', etiqueta: 'MÉTRICAS' },
     { ruta: '/mas', icono: '☰', etiqueta: 'MÁS' },
   ],
   ENTREGADOR: [
@@ -53,7 +53,7 @@ const TITULOS: Record<string, string> = {
   '/inventario': 'Inventario', '/proveedores': 'Proveedores', '/mapa': 'Mapa de rutas',
   '/entregas': 'Entregas', '/reportes': 'Reportes', '/importar': 'Importar Excel',
   '/gastos': 'Gastos', '/usuarios': 'Usuarios', '/perfil': 'Mi perfil',
-  '/facturas': 'Facturas', '/mas': 'Más opciones', '/rastreo': 'Rastreo', '/indicadores': 'Indicadores',
+  '/facturas': 'Facturas', '/mas': 'Más opciones', '/rastreo': 'Rastreo', '/indicadores': 'Indicadores', '/mi-inventario': 'Mi inventario',
 };
 
 const navStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties => ({

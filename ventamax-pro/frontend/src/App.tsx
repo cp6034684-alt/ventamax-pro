@@ -8,6 +8,7 @@ import { ClientesPage } from './features/clientes/ClientesPage';
 import { VentaPage } from './features/venta/VentaPage';
 import { ProductosPage } from './features/productos/ProductosPage';
 import { InventarioPage } from './features/inventario/InventarioPage';
+import { MiInventarioPage } from './features/inventario/MiInventarioPage';
 import { ProveedoresPage } from './features/proveedores/ProveedoresPage';
 import { MapaPage } from './features/mapa/MapaPage';
 import { EntregadorPage } from './features/entregador/EntregadorPage';
@@ -53,6 +54,7 @@ export function App() {
           <Route element={<RutaProtegida roles={['VENDEDOR', 'SUPERVISOR']} />}>
             <Route element={<Layout />}>
               <Route path="/venta" element={<VentaPage />} />
+              <Route path="/mi-inventario" element={<MiInventarioPage />} />
             </Route>
           </Route>
 
