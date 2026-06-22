@@ -33,16 +33,16 @@ const NAV_POR_ROL: Record<Rol, NavItem[]> = {
   ADMIN: [
     { ruta: '/', icono: '📊', etiqueta: 'INICIO' },
     { ruta: '/clientes', icono: '👥', etiqueta: 'CLIENTES' },
+    { ruta: '/inventario', icono: '📦', etiqueta: 'INVENTARIO' },
     { ruta: '/rastreo', icono: '📍', etiqueta: 'RASTREO' },
-    { ruta: '/mapa', icono: '🗺', etiqueta: 'MAPA' },
     { ruta: '/reportes', icono: '📈', etiqueta: 'REPORTES' },
     { ruta: '/mas', icono: '☰', etiqueta: 'MÁS' },
   ],
   COADMIN: [
     { ruta: '/', icono: '📊', etiqueta: 'INICIO' },
     { ruta: '/clientes', icono: '👥', etiqueta: 'CLIENTES' },
+    { ruta: '/inventario', icono: '📦', etiqueta: 'INVENTARIO' },
     { ruta: '/rastreo', icono: '📍', etiqueta: 'RASTREO' },
-    { ruta: '/mapa', icono: '🗺', etiqueta: 'MAPA' },
     { ruta: '/reportes', icono: '📈', etiqueta: 'REPORTES' },
     { ruta: '/mas', icono: '☰', etiqueta: 'MÁS' },
   ],

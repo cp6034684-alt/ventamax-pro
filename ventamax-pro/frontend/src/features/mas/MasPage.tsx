@@ -11,7 +11,7 @@ const CONSULTA: Rol[] = ['ADMIN', 'COADMIN', 'SUPERVISOR', 'VENDEDOR'];
 
 const MODULOS: Item[] = [
   { ruta: '/facturas',    icono: '🧾', titulo: 'Facturas',    descripcion: 'Historial, recibos, abonos y anulaciones', roles: TODOS },
-  { ruta: '/productos',   icono: '📦', titulo: 'Productos',   descripcion: 'Catálogo y precios', roles: TODOS },
+  { ruta: '/productos',   icono: '📦', titulo: 'Productos',   descripcion: 'Catálogo y precios', roles: ADMINS },
   { ruta: '/inventario',  icono: '📊', titulo: 'Inventario',  descripcion: 'Stock bajo, entradas y ajustes', roles: ADMINS },
   { ruta: '/proveedores', icono: '🏭', titulo: 'Proveedores', descripcion: 'Directorio de proveedores', roles: ADMINS },
   { ruta: '/bodegas',     icono: '🏬', titulo: 'Bodegas',     descripcion: 'Crear bodegas y asignarlas a una región', roles: ADMINS },

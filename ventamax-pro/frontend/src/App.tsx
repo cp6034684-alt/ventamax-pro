@@ -42,7 +42,6 @@ export function App() {
               {/* Todos los roles */}
               <Route path="/" element={<Inicio />} />
               <Route path="/clientes" element={<ClientesPage />} />
-              <Route path="/productos" element={<ProductosPage />} />
               <Route path="/mapa" element={<MapaPage />} />
               <Route path="/facturas" element={<FacturasPage />} />
               <Route path="/perfil" element={<PerfilPage />} />
@@ -68,6 +67,7 @@ export function App() {
           <Route element={<RutaProtegida roles={['ADMIN', 'COADMIN']} />}>
             <Route element={<Layout />}>
               <Route path="/inventario" element={<InventarioPage />} />
+              <Route path="/productos" element={<ProductosPage />} />
               <Route path="/proveedores" element={<ProveedoresPage />} />
               <Route path="/importar" element={<ImportarPage />} />
               <Route path="/bodegas" element={<BodegasPage />} />
