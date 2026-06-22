@@ -41,6 +41,7 @@ export function UsuariosPage() {
               zona: String(fd.get('zona') || '') || undefined,
               documento: String(fd.get('documento') || '') || undefined,
               ciudad: String(fd.get('ciudad') || '') || undefined,
+              telefono: String(fd.get('telefono') || '') || undefined,
               meta: fd.get('meta') ? Number(fd.get('meta')) : undefined,
               regionId: String(fd.get('regionId') || '') || undefined,
             });
@@ -60,6 +61,7 @@ export function UsuariosPage() {
           <div style={{ display: 'flex', gap: 8 }}>
             <input name="documento" placeholder="Documento / cédula" inputMode="numeric" />
             <input name="ciudad" placeholder="Ciudad" />
+            <input name="telefono" placeholder="Teléfono" inputMode="tel" />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input name="zona" placeholder="Zona / ruta (opcional)" style={{ flex: 1 }} />
@@ -125,6 +127,7 @@ export function UsuariosPage() {
                   zona: String(fd.get('zona') || ''),
                   documento: String(fd.get('documento') || ''),
                   ciudad: String(fd.get('ciudad') || ''),
+                  telefono: String(fd.get('telefono') || ''),
                   meta: fd.get('meta') ? Number(String(fd.get('meta')).replace(/[^\d]/g, '')) : undefined,
                   regionId: String(fd.get('regionId') || '') || null,
                 });
@@ -144,6 +147,7 @@ export function UsuariosPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <input name="documento" defaultValue={u.documento ?? ''} placeholder="Documento" inputMode="numeric" />
                 <input name="ciudad" defaultValue={u.ciudad ?? ''} placeholder="Ciudad" />
+                <input name="telefono" defaultValue={u.telefono ?? ''} placeholder="Teléfono" inputMode="tel" />
               </div>
               <input name="zona" defaultValue={u.zona ?? ''} placeholder="Zona / ruta" />
               <select name="regionId" defaultValue={u.region?.id ?? ''}>

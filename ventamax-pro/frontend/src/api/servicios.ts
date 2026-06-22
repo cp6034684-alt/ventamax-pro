@@ -110,9 +110,9 @@ export const importarApi = {
 
 export const usuariosApi = {
   listar: () => api<Usuario[]>('/usuarios'),
-  crear: (d: { nombre: string; usuario: string; pin: string; rol: string; zona?: string; documento?: string; ciudad?: string; meta?: number; listasPrecios?: string[]; regionId?: string | null }) =>
+  crear: (d: { nombre: string; usuario: string; pin: string; rol: string; zona?: string; documento?: string; ciudad?: string; telefono?: string; meta?: number; listasPrecios?: string[]; regionId?: string | null }) =>
     api<Usuario>('/usuarios', { method: 'POST', body: JSON.stringify(d) }),
-  actualizar: (id: string, d: Partial<{ nombre: string; pin: string; activo: boolean; zona: string; documento: string; ciudad: string; meta: number; rol: string; listasPrecios: string[]; regionId: string | null }>) =>
+  actualizar: (id: string, d: Partial<{ nombre: string; pin: string; activo: boolean; zona: string; documento: string; ciudad: string; telefono: string; meta: number; rol: string; listasPrecios: string[]; regionId: string | null }>) =>
     api<Usuario>(`/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
 };
 

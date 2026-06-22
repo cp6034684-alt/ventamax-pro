@@ -3,7 +3,7 @@ export type Rol = 'ADMIN' | 'COADMIN' | 'SUPERVISOR' | 'VENDEDOR' | 'ENTREGADOR'
 export interface Usuario {
   id: string; nombre: string; rol: Rol; zona?: string | null;
   usuario?: string; activo?: boolean; listasPrecios?: string[];
-  documento?: string | null; ciudad?: string | null; meta?: number;
+  documento?: string | null; ciudad?: string | null; telefono?: string | null; meta?: number;
   regionId?: string | null; region?: { id: string; nombre: string } | null;
 }
 
@@ -50,8 +50,8 @@ export interface Factura {
   devuelta?: string; causal?: string | null; obsDevolucion?: string | null;
   montoDevuelto?: string; revivirSolicitado?: boolean; facturaOrigenId?: string | null;
   tareaId?: string | null;
-  cliente?: { nombre: string; direccion?: string; barrio?: string; ciudad?: string; zona?: string; telefono?: string };
-  vendedor?: { nombre: string }; items: FacturaItem[];
+  cliente?: { nombre: string; nit?: string; direccion?: string; barrio?: string; ciudad?: string; zona?: string; telefono?: string };
+  vendedor?: { nombre: string; telefono?: string | null; zona?: string | null }; items: FacturaItem[];
 }
 
 export interface FacturaEntrega extends Factura {

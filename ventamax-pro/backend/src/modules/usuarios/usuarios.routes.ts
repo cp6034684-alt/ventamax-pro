@@ -15,6 +15,7 @@ const usuarioSchema = z.object({
   zona: z.string().optional(),
   documento: z.string().optional(),
   ciudad: z.string().optional(),
+  telefono: z.string().optional(),
   meta: z.number().int().min(0).optional(),
   listasPrecios: z.array(z.enum(LISTAS)).optional(),
   regionId: z.string().uuid().nullable().optional(),
@@ -28,7 +29,7 @@ usuariosRouter.use(requiereAuth, requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'));
 usuariosRouter.get('/', async (_req, res, next) => {
   try {
     res.json(await db.usuario.findMany({
-      select: ({ id: true, nombre: true, usuario: true, rol: true, zona: true, documento: true, ciudad: true, meta: true, listasPrecios: true, activo: true, creadoEn: true, regionId: true, region: { select: { id: true, nombre: true } } } as any),
+      select: ({ id: true, nombre: true, usuario: true, rol: true, zona: true, documento: true, ciudad: true, telefono: true, meta: true, listasPrecios: true, activo: true, creadoEn: true, regionId: true, region: { select: { id: true, nombre: true } } } as any),
       orderBy: { nombre: 'asc' },
     }));
   } catch (e) { next(e); }
@@ -57,6 +58,7 @@ usuariosRouter.patch('/:id', async (req, res, next) => {
     if (req.body.zona !== undefined) data.zona = req.body.zona;
     if (req.body.documento !== undefined) data.documento = req.body.documento;
     if (req.body.ciudad !== undefined) data.ciudad = req.body.ciudad;
+    if (req.body.telefono !== undefined) data.telefono = req.body.telefono;
     if (req.body.meta !== undefined) data.meta = req.body.meta;
     if (req.body.rol) {
       if (req.usuario!.rol === 'SUPERVISOR' && ROLES_ELEVADOS.includes(req.body.rol)) {

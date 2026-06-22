@@ -34,6 +34,7 @@ model Usuario {
   zona         String? // zona/ruta asignada al vendedor TAT
   documento    String? // cédula / documento del vendedor (sale en el reporte)
   ciudad       String? // ciudad base del usuario
+  telefono     String? // teléfono del vendedor (sale en el recordatorio)
   meta         Int       @default(10000000) // meta de venta mensual (para el % de meta del dashboard)
   listasPrecios String[] @default([]) // listas de precio que puede usar
   regionId     String? // región asignada (define su bodega para las ventas)

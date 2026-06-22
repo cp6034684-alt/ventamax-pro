@@ -21,8 +21,8 @@ facturasRouter.get('/cola-entrega', async (_req, res, next) => {
       orderBy: { creadoEn: 'asc' },
       take: 200,
       include: {
-        cliente: { select: { id: true, nombre: true, direccion: true, barrio: true, telefono: true, lat: true, lng: true } },
-        vendedor: { select: { nombre: true } },
+        cliente: { select: { id: true, nombre: true, nit: true, direccion: true, barrio: true, ciudad: true, telefono: true, lat: true, lng: true } },
+        vendedor: { select: ({ nombre: true, telefono: true, zona: true } as any) },
         items: { include: { producto: { select: { nombre: true, iva: true } } } },
       },
     });
@@ -39,7 +39,7 @@ facturasRouter.get('/solicitudes-revivir', requiereRol('ADMIN', 'COADMIN', 'SUPE
       take: 100,
       include: {
         cliente: { select: { nombre: true, barrio: true, direccion: true } },
-        vendedor: { select: { nombre: true } },
+        vendedor: { select: ({ nombre: true, telefono: true, zona: true } as any) },
         items: { include: { producto: { select: { nombre: true, iva: true } } } },
       },
     });
@@ -76,8 +76,8 @@ facturasRouter.get('/', async (req, res, next) => {
         where, skip, take,
         orderBy: { creadoEn: 'desc' },
         include: {
-          cliente: { select: { nombre: true, direccion: true, barrio: true, ciudad: true, zona: true, telefono: true } },
-          vendedor: { select: { nombre: true } },
+          cliente: { select: { nombre: true, nit: true, direccion: true, barrio: true, ciudad: true, zona: true, telefono: true } },
+          vendedor: { select: ({ nombre: true, telefono: true, zona: true } as any) },
           items: { include: { producto: { select: { nombre: true, iva: true } } } },
         },
       }),
