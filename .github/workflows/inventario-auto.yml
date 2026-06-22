@@ -1,0 +1,31 @@
+name: Inventario automático (3x/día)
+
+# Horario Colombia (UTC-5): 8:00am, 12:00m, 4:00pm  ->  13:00, 17:00, 21:00 UTC
+on:
+  schedule:
+    - cron: '0 13,17,21 * * *'
+  workflow_dispatch: {}   # permite ejecutarlo a mano desde la pestaña Actions
+
+jobs:
+  actualizar-inventario:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dependencias
+        run: pip install --quiet google-api-python-client google-auth openpyxl requests
+
+      - name: Actualizar inventario desde Drive
+        env:
+          GDRIVE_SA_KEY: ${{ secrets.GDRIVE_SA_KEY }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          API_BASE: ${{ secrets.API_BASE }}
+          IMPORT_TOKEN: ${{ secrets.IMPORT_TOKEN }}
+          REGIONES: ${{ secrets.INV_REGIONES }}
+        run: python .github/scripts/inventario_auto.py
