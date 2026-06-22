@@ -25,9 +25,11 @@ productosRouter.get('/', async (req, res, next) => {
     let vend: any = null;
     if (req.usuario?.rol === 'VENDEDOR') {
       vend = await db.usuario.findUnique({ where: { id: req.usuario.id }, select: ({ regionId: true, zona: true } as any) });
-      // FOCALIZADO (ticket termina en -FOC): solo ve productos de la marca GENOMMA.
+      // FOCALIZADO (ticket termina en -FOC): solo ve/vende productos de marca GENOMMA.
+      // Tolerante a errores de escritura: cualquier marca con la raíz "genom"
+      // (GENOMMA, GENOMMA LAB, GENOMA, GENOMM…) se entiende como Genomma.
       if (String(vend?.zona ?? '').toUpperCase().includes('FOC')) {
-        where.marca = { contains: 'GENOMMA', mode: 'insensitive' };
+        where.marca = { contains: 'genom', mode: 'insensitive' };
       }
     }
 
