@@ -28,9 +28,29 @@ productosRouter.get('/', async (req, res, next) => {
     // El precio de costo (precioCompra) solo lo pueden ver los administradores.
     // Para cualquier otro rol (supervisor, vendedor, entregador) se elimina antes de enviar.
     const veCosto = req.usuario && ['ADMIN', 'COADMIN'].includes(req.usuario.rol);
-    const salida = veCosto
+    let salida: any[] = veCosto
       ? datos
       : datos.map(({ precioCompra, ...resto }: any) => resto);
+
+    // El VENDEDOR ve el stock de la bodega de SU región (no el total global de todas las bodegas).
+    if (req.usuario?.rol === 'VENDEDOR') {
+      const u = await db.usuario.findUnique({ where: { id: req.usuario.id }, select: ({ regionId: true } as any) }) as any;
+      let bodegaId: string | null = null;
+      if (u?.regionId) {
+        const r = await (db as any).region.findUnique({ where: { id: u.regionId }, select: { bodegaPrincipalId: true } });
+        bodegaId = r?.bodegaPrincipalId ?? null;
+      }
+      if (bodegaId) {
+        const ids = salida.map((x) => x.id);
+        const sb = ids.length
+          ? await (db as any).stockBodega.findMany({ where: { bodegaId, productoId: { in: ids } }, select: { productoId: true, cantidad: true } })
+          : [];
+        const m = new Map(sb.map((x: any) => [x.productoId, x.cantidad]));
+        salida = salida.map((x) => ({ ...x, stock: m.get(x.id) ?? 0 }));
+      }
+      // Si el vendedor no tiene región/bodega asignada, se deja el stock global como respaldo.
+    }
+
     res.json(respuestaPaginada(salida, total, pagina, porPagina));
   } catch (e) { next(e); }
 });
