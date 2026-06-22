@@ -9,7 +9,6 @@ const SUBTABS = [
   { id: 'solicitudes', label: '🔄 Solicitudes' },
   { id: 'programar', label: '📋 Programar' },
   { id: 'avance', label: '📊 Avance' },
-  { id: 'rentab', label: '💹 Rentabilidad' },
   { id: 'caja', label: '💵 Cuadre Caja' },
   { id: 'historial', label: '📂 Historial' },
 ];
@@ -30,7 +29,6 @@ export function EntregasReporte() {
   const { data: activas } = useQuery({ queryKey: ['tareas', 'activa'], queryFn: () => tareasApi.listar({ estado: 'activa' }), enabled: ['activas', 'avance', 'caja'].includes(sub) });
   const { data: completadas } = useQuery({ queryKey: ['tareas', 'completada'], queryFn: () => tareasApi.listar({ estado: 'completada' }), enabled: ['historial', 'caja', 'avance'].includes(sub) });
   const { data: solicitudes } = useQuery({ queryKey: ['solic-revivir'], queryFn: facturasApi.solicitudesRevivir, enabled: sub === 'solicitudes' });
-  const { data: renta } = useQuery({ queryKey: ['ent-renta'], queryFn: () => reportesApi.rentabilidad('mes'), enabled: sub === 'rentab' });
 
   const completar = useMutation({ mutationFn: (id: string) => tareasApi.completar(id), onSuccess: () => qc.invalidateQueries({ queryKey: ['tareas'] }) });
   const eliminar = useMutation({ mutationFn: (id: string) => tareasApi.eliminar(id), onSuccess: () => qc.invalidateQueries() });
@@ -85,13 +83,6 @@ export function EntregasReporte() {
 
       {sub === 'avance' && <Avance tareas={[...(activas ?? []), ...(completadas ?? [])]} />}
 
-      {sub === 'rentab' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-          <div className="card"><div className="muted" style={{ fontSize: 11, fontWeight: 700 }}>VENTA (mes)</div><div className="mono green" style={{ fontSize: 20, fontWeight: 700 }}>{fmtMoneda(renta?.totales.venta ?? 0)}</div></div>
-          <div className="card"><div className="muted" style={{ fontSize: 11, fontWeight: 700 }}>COSTO</div><div className="mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--red)' }}>{fmtMoneda(renta?.totales.costo ?? 0)}</div></div>
-          <div className="card"><div className="muted" style={{ fontSize: 11, fontWeight: 700 }}>GANANCIA</div><div className="mono accent" style={{ fontSize: 20, fontWeight: 700 }}>{fmtMoneda(renta?.totales.ganancia ?? 0)}</div><div className="muted" style={{ fontSize: 11 }}>margen {pct(renta?.totales.margen ?? 0)}</div></div>
-        </div>
-      )}
 
       {sub === 'caja' && <CuadreCaja tareas={[...(activas ?? []), ...(completadas ?? [])]} />}
     </div>
