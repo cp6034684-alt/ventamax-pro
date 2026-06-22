@@ -62,6 +62,9 @@ export function ClienteDetalle({ cliente, onCerrar, onEditar, onVender }: {
 
   const c = data ?? (cliente as any);
   const s = data?.stats;
+  // El "tipo de cliente" del archivo del negocio se importó en segmento (TIENDA, DROGUERIA…);
+  // la tipología (lista de precio) puede no estar fijada aún. Mostramos lo que exista.
+  const tipoCliente: string | null = c.tipologia || c.segmento || null;
 
   // Categorías a partir de las últimas facturas
   const cats = new Map<string, number>();
@@ -135,7 +138,7 @@ export function ClienteDetalle({ cliente, onCerrar, onEditar, onVender }: {
               <Dato etiqueta="Barrio" valor={c.barrio} />
               <Dato etiqueta="Dirección" valor={c.direccion} />
               <Dato etiqueta="Zona" valor={c.zona} />
-              <Dato etiqueta="Tipología" valor={c.tipologia ? (TIPOLOGIA_LABEL[c.tipologia] ?? c.tipologia) : null} />
+              <Dato etiqueta="Tipología" valor={tipoCliente ? (TIPOLOGIA_LABEL[tipoCliente] ?? tipoCliente) : null} />
               <Dato etiqueta="Saldo pendiente" valor={Number(c.saldoPendiente) > 0 ? fmtMoneda(c.saldoPendiente) : 'Al día'} />
             </div>
             {!c.correo && (
