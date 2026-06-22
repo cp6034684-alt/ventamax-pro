@@ -312,7 +312,7 @@ export function VentaPage() {
       )}
 
       {/* Búsqueda */}
-      <input placeholder={tab === 'buscar' ? 'Buscar cliente en toda la base…' : 'Buscar en esta ruta…'}
+      <input placeholder={tab === 'buscar' ? 'Buscar cliente (nombre, barrio, NIT, teléfono)…' : 'Buscar en esta ruta (nombre, barrio…)…'}
         value={busquedaRuta} onChange={e => { setBusquedaRuta(e.target.value); setPagina(1); }} />
 
       {/* Chips por barrio */}
