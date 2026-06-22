@@ -223,7 +223,7 @@ export function ClienteDetalle({ cliente, onCerrar, onEditar, onVender }: {
                 onClick={() => setCausales(true)}>🚫 No compró</button>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-              <button className="btn" style={{ background: 'linear-gradient(135deg, var(--green), #00a070)' }} onClick={() => onEditar(c)}>📍 Editar / GPS</button>
+              <button className="btn" style={{ background: 'linear-gradient(135deg, var(--green), #00a070)' }} onClick={() => onEditar(c)}>✏️ Editar</button>
               <button className="btn btn-ghost" onClick={onCerrar}>Cerrar</button>
             </div>
           </>

@@ -223,9 +223,10 @@ clientesRouter.post('/', validarBody(clienteSchema), async (req, res, next) => {
 clientesRouter.put('/:id', validarBody(clienteUpdateSchema), async (req, res, next) => {
   try {
     const data: any = { ...req.body };
-    // La tipología (lista de precio) solo la puede cambiar supervisor/administradores.
+    delete data.codigo; // el código del cliente nunca se edita
+    // La tipología (lista de precio), el NOMBRE y el DOCUMENTO (NIT) solo los cambian supervisor/administradores.
     if (!['ADMIN', 'COADMIN', 'SUPERVISOR'].includes(req.usuario!.rol)) {
-      delete data.tipologia; delete data.listaPrecio;
+      delete data.tipologia; delete data.listaPrecio; delete data.nombre; delete data.nit;
     }
     res.json(await db.cliente.update({ where: { id: req.params.id }, data }));
   } catch (e) { next(e); }
