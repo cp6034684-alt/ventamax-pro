@@ -33,7 +33,6 @@ const TABS_GESTION: Tab[] = [
   { id: 'cartera', label: '⚠️ Cartera' },
   { id: 'entregas', label: '🚚 Entregas' },
   { id: 'excel', label: '📊 Excel' },
-  { id: 'finanzas', label: '💵 Finanzas' },
   { id: 'actividad', label: '📍 Actividad' },
   { id: 'bodega', label: '🏭 Bodega' },
   { id: 'manifiesto', label: '📋 Manifiesto' },
@@ -88,16 +87,16 @@ export function ReportesPage() {
   const [hasta, setHasta] = useState(hoyISO());
   const [exportando, setExportando] = useState(false);
 
-  const usaRango = ['ventas', 'rentab', 'finanzas', 'excel', 'kpos'].includes(tab);
+  const usaRango = ['ventas', 'rentab', 'excel', 'kpos'].includes(tab);
 
   const { data: resumen } = useQuery({
     queryKey: ['rep-resumen', desde, hasta],
     queryFn: () => reportesApi.resumen(desde, hasta),
-    enabled: esGestion && ['ventas', 'finanzas'].includes(tab),
+    enabled: esGestion && ['ventas'].includes(tab),
   });
   const { data: cartera } = useQuery({
     queryKey: ['rep-cartera'], queryFn: reportesApi.cartera,
-    enabled: esGestion && ['ventas', 'cartera', 'finanzas'].includes(tab),
+    enabled: esGestion && ['ventas', 'cartera'].includes(tab),
   });
   const { data: semana } = useQuery({ queryKey: ['semana'], queryFn: reportesApi.semana, enabled: tab === 'ventas' });
   const { data: ind } = useQuery({
@@ -267,15 +266,6 @@ export function ReportesPage() {
           <p className="muted" style={{ fontSize: 12 }}>Exporta el periodo seleccionado a Excel.</p>
           <button className="btn btn-ghost" onClick={exportarExcel} disabled={exportando}>{exportando ? 'Generando…' : '⬇ Resumen de facturas'}</button>
           <button className="btn" onClick={exportarDetallado} disabled={exportando}>{exportando ? 'Generando…' : '⬇ Reporte detallado'}</button>
-        </div>
-      )}
-
-      {tab === 'finanzas' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-          <Card titulo="INGRESOS (ventas)" valor={fmtMoneda(totalVentas)} color="var(--green)" />
-          <Card titulo="EGRESOS (gastos)" valor={fmtMoneda(totalGastos)} color="var(--red)" />
-          <Card titulo="UTILIDAD" valor={fmtMoneda(totalVentas - totalGastos)} color="var(--accent)" />
-          <Card titulo="POR COBRAR (cartera)" valor={fmtMoneda(cartera?.total ?? 0)} color="var(--orange)" />
         </div>
       )}
 
