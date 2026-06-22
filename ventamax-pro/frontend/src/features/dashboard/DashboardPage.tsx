@@ -57,6 +57,7 @@ function Pill({ activo, onClick, children }: { activo: boolean; onClick: () => v
 // ──────────────────────────────────────────────────────────────
 function DashboardAdmin() {
   const [periAsesor, setPeriAsesor] = useState<Periodo>('dia');
+  const [asesoresAbierto, setAsesoresAbierto] = useState(false);
   const [filtroFac, setFiltroFac] = useState<FiltroFac>('dia');
   const [rango, setRango] = useState({ desde: localISO(new Date()), hasta: localISO(new Date()) });
   const [mostrarRango, setMostrarRango] = useState(false);
@@ -126,14 +127,22 @@ function DashboardAdmin() {
       {/* ── Asesores – periodo ── */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: 14 }}>Asesores – {LABEL_PERIODO[periAsesor]}</strong>
+          <button onClick={() => setAsesoresAbierto(v => !v)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, padding: 0 }}>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{asesoresAbierto ? '▾' : '▸'}</span>
+            <strong style={{ fontSize: 14 }}>Asesores – {LABEL_PERIODO[periAsesor]}</strong>
+            <span className="muted" style={{ fontSize: 11 }}>({asesores?.ranking.length ?? 0})</span>
+          </button>
           <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', gap: 4 }}>
-            {(['dia', 'semana', 'mes', 'todo'] as Periodo[]).map(p => (
-              <Pill key={p} activo={periAsesor === p} onClick={() => setPeriAsesor(p)}>{LABEL_PERIODO[p]}</Pill>
-            ))}
-          </div>
+          {asesoresAbierto && (
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['dia', 'semana', 'mes', 'todo'] as Periodo[]).map(p => (
+                <Pill key={p} activo={periAsesor === p} onClick={() => setPeriAsesor(p)}>{LABEL_PERIODO[p]}</Pill>
+              ))}
+            </div>
+          )}
         </div>
+        {asesoresAbierto && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           {!asesores?.ranking.length && (
             <div className="muted" style={{ fontSize: 12, padding: 16, textAlign: 'center' }}>Sin asesores.</div>
@@ -156,6 +165,7 @@ function DashboardAdmin() {
             </div>
           ))}
         </div>
+        )}
       </div>
 
       {/* ── Facturas – encabezado + filtros ── */}
