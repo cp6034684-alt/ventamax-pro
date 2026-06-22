@@ -106,3 +106,49 @@ rastreoRouter.get('/recorrido', async (req, res, next) => {
     });
   } catch (e) { next(e); }
 });
+
+// GET /api/rastreo/recorridos?fecha=YYYY-MM-DD — recorrido del día de TODOS los vendedores (para verlos juntos)
+rastreoRouter.get('/recorridos', async (req, res, next) => {
+  try {
+    const base = req.query.fecha ? new Date(String(req.query.fecha)) : new Date();
+    const inicio = new Date(base); inicio.setHours(0, 0, 0, 0);
+    const fin = new Date(inicio); fin.setDate(fin.getDate() + 1);
+
+    const vendedores = await db.usuario.findMany({
+      where: { rol: { in: ROLES_CAMPO as any }, activo: true },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: 'asc' },
+    });
+    const ids = vendedores.map((v) => v.id);
+    if (!ids.length) return res.json([]);
+
+    const [ubics, ventas, visitas] = await Promise.all([
+      db.ubicacion.findMany({ where: { vendedorId: { in: ids }, creadoEn: { gte: inicio, lt: fin } }, orderBy: { creadoEn: 'asc' }, select: { vendedorId: true, lat: true, lng: true, creadoEn: true } }),
+      db.factura.findMany({ where: { vendedorId: { in: ids }, creadoEn: { gte: inicio, lt: fin }, estado: { not: 'ANULADA' }, tipoDoc: 'VENTA' }, orderBy: { creadoEn: 'asc' }, select: { vendedorId: true, creadoEn: true, total: true, clienteId: true, items: { select: { cantidad: true } } } }),
+      db.visita.findMany({ where: { vendedorId: { in: ids }, creadoEn: { gte: inicio, lt: fin } }, orderBy: { creadoEn: 'asc' }, select: { vendedorId: true, creadoEn: true, causal: true, clienteId: true } }),
+    ]);
+    const cliIds = [...new Set([...ventas.map((v) => v.clienteId), ...visitas.map((v) => v.clienteId)])];
+    const clientes = cliIds.length
+      ? await db.cliente.findMany({ where: { id: { in: cliIds } }, select: { id: true, nombre: true, lat: true, lng: true, direccion: true, barrio: true } })
+      : [];
+    const cliMap = new Map(clientes.map((c) => [c.id, c]));
+    const ubic = (c: any) => [c?.direccion, c?.barrio].filter(Boolean).join(', ');
+
+    const porVend = new Map<string, { nombre: string; puntos: any[]; operaciones: any[] }>();
+    for (const v of vendedores) porVend.set(v.id, { nombre: v.nombre, puntos: [], operaciones: [] });
+    for (const u of ubics) porVend.get(u.vendedorId)?.puntos.push({ lat: u.lat, lng: u.lng, creadoEn: u.creadoEn });
+    for (const v of ventas) {
+      const c = cliMap.get(v.clienteId); if (!c?.lat || !c?.lng) continue;
+      porVend.get(v.vendedorId)?.operaciones.push({ tipo: 'venta', lat: c.lat, lng: c.lng, hora: v.creadoEn, cliente: c.nombre, total: Number(v.total), refs: v.items.length, unidades: v.items.reduce((a, it) => a + it.cantidad, 0), direccion: ubic(c) });
+    }
+    for (const vi of visitas) {
+      const c = cliMap.get(vi.clienteId); if (!c?.lat || !c?.lng) continue;
+      porVend.get(vi.vendedorId)?.operaciones.push({ tipo: 'visita', lat: c.lat, lng: c.lng, hora: vi.creadoEn, cliente: c.nombre, causal: vi.causal, direccion: ubic(c) });
+    }
+
+    const out = vendedores
+      .map((v) => ({ vendedorId: v.id, ...porVend.get(v.id)! }))
+      .filter((r) => r.puntos.length || r.operaciones.length);
+    res.json(out);
+  } catch (e) { next(e); }
+});

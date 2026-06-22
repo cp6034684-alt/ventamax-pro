@@ -174,6 +174,7 @@ export interface Tarea {
 export interface VendedorRastreo { id: string; nombre: string; rol: Rol; zona?: string | null; }
 export interface PosicionViva { id: string; nombre: string; rol: Rol; lat: number; lng: number; haceSegundos: number; }
 export interface PuntoRecorrido { lat: number; lng: number; creadoEn: string; }
+export interface RecorridoVendedor { vendedorId: string; nombre: string; puntos: PuntoRecorrido[]; operaciones: OperacionRecorrido[]; }
 export interface OperacionRecorrido {
   tipo: 'venta' | 'visita'; lat: number; lng: number; hora: string; cliente: string;
   total?: number; refs?: number; unidades?: number; causal?: string; direccion?: string;

@@ -3,7 +3,7 @@ import type {
   Cliente, Producto, Factura, FacturaEntrega, Paginado, Usuario,
   Proveedor, MovimientoStock, ResumenReporte, VentaDia, Cartera,
   Periodo, RankingAsesores, PanelAdmin, Presente, BarrioFaceta, ClienteDetalle, ClienteMapa,
-  VendedorRastreo, PosicionViva, Recorrido, Indicadores, Region, Bodega, GrupoDuplicado,
+  VendedorRastreo, PosicionViva, Recorrido, RecorridoVendedor, Indicadores, Region, Bodega, GrupoDuplicado,
   DashboardHistorico, Rentabilidad, Tarea,
 } from './tipos';
 
@@ -178,4 +178,5 @@ export const rastreoApi = {
   vivo: () => api<PosicionViva[]>('/rastreo/vivo'),
   recorrido: (vendedorId: string, fecha: string) =>
     api<Recorrido>(`/rastreo/recorrido?vendedorId=${vendedorId}&fecha=${fecha}`),
+  recorridos: (fecha: string) => api<RecorridoVendedor[]>(`/rastreo/recorridos?fecha=${fecha}`),
 };
