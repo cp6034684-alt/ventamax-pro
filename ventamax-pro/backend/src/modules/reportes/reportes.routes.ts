@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { db } from '../../config/db';
 import { requiereAuth, requiereRol } from '../../middleware/auth';
 
+const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
 export const reportesRouter = Router();
 reportesRouter.use(requiereAuth);
 
@@ -854,6 +856,113 @@ reportesRouter.get('/ejecutivo', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), 
       seguimiento: diario,
       proyeccion: { ventaMtd, proyeccion, metaTotal, diaActual, diasMes, cumplimiento: metaTotal > 0 ? proyeccion / metaTotal : 0 },
       alertas: alertas.slice(0, 20),
+    });
+  } catch (e) { next(e); }
+});
+
+// GET /api/reportes/comparativo — mes en curso vs mes anterior (mismo nro de días, comparación justa).
+// total + por vendedor (con impactos y pedidos) + por categoría / regional / marca. Alcance por rol.
+reportesRouter.get('/comparativo', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    let scopeIds: string[] | null = null;
+    if (req.usuario!.rol === 'SUPERVISOR') {
+      const equipo = await db.usuario.findMany({
+        where: ({ OR: [{ supervisorId: req.usuario!.id }, { id: req.usuario!.id }] } as any),
+        select: { id: true },
+      });
+      scopeIds = equipo.map((u: any) => u.id);
+      if (!scopeIds.length) scopeIds = [req.usuario!.id];
+    }
+    const fScope = scopeIds ? Prisma.sql`AND f."vendedorId" IN (${Prisma.join(scopeIds)})` : Prisma.empty;
+
+    const ahora = new Date();
+    const y = ahora.getFullYear(), m = ahora.getMonth(), diaActual = ahora.getDate();
+    const aDesde = new Date(y, m, 1, 0, 0, 0);
+    const aHasta = ahora;
+    const prev = new Date(y, m - 1, 1);
+    const py = prev.getFullYear(), pm = prev.getMonth();
+    const lastPrev = new Date(py, pm + 1, 0).getDate();
+    const bDesde = new Date(py, pm, 1, 0, 0, 0);
+    const bHasta = new Date(py, pm, Math.min(diaActual, lastPrev), 23, 59, 59);
+
+    // Fragmentos FILTER por período
+    const FA = Prisma.sql`FILTER (WHERE f."creadoEn" >= ${aDesde} AND f."creadoEn" <= ${aHasta})`;
+    const FB = Prisma.sql`FILTER (WHERE f."creadoEn" >= ${bDesde} AND f."creadoEn" <= ${bHasta})`;
+    // Rango total que abarca ambos períodos (para el WHERE externo)
+    const ventaWhere = Prisma.sql`f.estado <> 'ANULADA' AND f."tipoDoc" = 'VENTA' AND f."creadoEn" >= ${bDesde} AND f."creadoEn" <= ${aHasta} ${fScope}`;
+
+    const [totItems, totFact, vendedor, categoria, regional, marca] = await Promise.all([
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT
+          COALESCE(SUM(i.total) ${FA},0)::float AS venta_act,
+          COALESCE(SUM(i.total) ${FB},0)::float AS venta_ant,
+          COALESCE(SUM(i.cantidad) ${FA},0)::int AS und_act,
+          COALESCE(SUM(i.cantidad) ${FB},0)::int AS und_ant
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId"
+        WHERE ${ventaWhere}`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT
+          COUNT(DISTINCT f.id) ${FA}::int AS ped_act,
+          COUNT(DISTINCT f.id) ${FB}::int AS ped_ant,
+          COUNT(DISTINCT f."clienteId") ${FA}::int AS cli_act,
+          COUNT(DISTINCT f."clienteId") ${FB}::int AS cli_ant
+        FROM facturas f WHERE ${ventaWhere}`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT u.nombre AS nombre, u.zona AS zona,
+          COALESCE(SUM(i.total) ${FA},0)::float AS venta_act,
+          COALESCE(SUM(i.total) ${FB},0)::float AS venta_ant,
+          COALESCE(SUM(i.cantidad) ${FA},0)::int AS und_act,
+          COALESCE(SUM(i.cantidad) ${FB},0)::int AS und_ant,
+          COUNT(DISTINCT f.id) ${FA}::int AS ped_act,
+          COUNT(DISTINCT f.id) ${FB}::int AS ped_ant,
+          COUNT(DISTINCT f."clienteId") ${FA}::int AS cli_act,
+          COUNT(DISTINCT f."clienteId") ${FB}::int AS cli_ant
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN usuarios u ON u.id=f."vendedorId"
+        WHERE ${ventaWhere} GROUP BY u.id, u.nombre, u.zona
+        ORDER BY venta_act DESC LIMIT 60`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM(p.categoria),''),'Sin categoría') AS nombre,
+          COALESCE(SUM(i.total) ${FA},0)::float AS venta_act,
+          COALESCE(SUM(i.total) ${FB},0)::float AS venta_ant
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        WHERE ${ventaWhere} GROUP BY 1 ORDER BY venta_act DESC LIMIT 30`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(r.nombre,'Sin región') AS nombre,
+          COALESCE(SUM(i.total) ${FA},0)::float AS venta_act,
+          COALESCE(SUM(i.total) ${FB},0)::float AS venta_ant
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        JOIN usuarios u ON u.id=f."vendedorId" LEFT JOIN regiones r ON r.id=u."regionId"
+        WHERE ${ventaWhere} GROUP BY r.nombre ORDER BY venta_act DESC`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM(p.marca),''),'Sin marca') AS nombre,
+          COALESCE(SUM(i.total) ${FA},0)::float AS venta_act,
+          COALESCE(SUM(i.total) ${FB},0)::float AS venta_ant
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        WHERE ${ventaWhere} GROUP BY 1 ORDER BY venta_act DESC LIMIT 30`),
+    ]);
+
+    const ti = totItems[0] ?? {}; const tf = totFact[0] ?? {};
+    const num = (v: any) => Number(v || 0);
+    const mapDim = (rows: any[]) => rows.map(r => ({ nombre: r.nombre, ventaAct: num(r.venta_act), ventaAnt: num(r.venta_ant) }));
+
+    res.json({
+      actualLabel: `${MES_CORTO[m]} ${y}`,
+      anteriorLabel: `${MES_CORTO[pm]} ${py}`,
+      diaActual, diasComparados: Math.min(diaActual, lastPrev),
+      total: {
+        ventaAct: num(ti.venta_act), ventaAnt: num(ti.venta_ant),
+        undAct: num(ti.und_act), undAnt: num(ti.und_ant),
+        pedAct: num(tf.ped_act), pedAnt: num(tf.ped_ant),
+        cliAct: num(tf.cli_act), cliAnt: num(tf.cli_ant),
+      },
+      vendedor: vendedor.map(r => ({
+        nombre: r.nombre, zona: r.zona,
+        ventaAct: num(r.venta_act), ventaAnt: num(r.venta_ant),
+        undAct: num(r.und_act), undAnt: num(r.und_ant),
+        pedAct: num(r.ped_act), pedAnt: num(r.ped_ant),
+        cliAct: num(r.cli_act), cliAnt: num(r.cli_ant),
+      })),
+      categoria: mapDim(categoria), regional: mapDim(regional), marca: mapDim(marca),
     });
   } catch (e) { next(e); }
 });

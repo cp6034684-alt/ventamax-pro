@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { reportesApi } from '../../api/servicios';
 import { fmtMoneda } from '../../api/formato';
-import type { EjecItem } from '../../api/tipos';
+import type { EjecItem, ComparativoMes, CompDim, CompVend } from '../../api/tipos';
 
 const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const hoyISO = () => { const d = new Date(); const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); };
@@ -20,6 +20,7 @@ function corto(n: number) {
 const PALETA = ['#00e5ff', '#34d399', '#c084fc', '#fbbf24', '#fb7185', '#38bdf8', '#a3e635', '#f472b6', '#f97316', '#22d3ee'];
 
 export function DashboardEjecutivoPage() {
+  const [vista, setVista] = useState<'resumen' | 'comparativo'>('resumen');
   const [periodo, setPeriodo] = useState('mes');
   const [desde, setDesde] = useState(inicioMesISO());
   const [hasta, setHasta] = useState(hoyISO());
@@ -47,6 +48,14 @@ export function DashboardEjecutivoPage() {
         </span>
       </div>
 
+      {/* Conmutador de vista */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {([['resumen', '📊 Resumen'], ['comparativo', '📅 Mes vs mes anterior']] as const).map(([id, lab]) => (
+          <button key={id} className={`btn ${vista === id ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 12, padding: '8px' }} onClick={() => setVista(id)}>{lab}</button>
+        ))}
+      </div>
+
+      {vista === 'comparativo' ? <ComparativoView /> : (<>
       {/* Selector de periodo */}
       <div className="card" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px' }}>
         {([['semana', 'Semana'], ['mes', 'Mes'], ['trimestre', 'Trimestre'], ['rango', 'Rango']] as const).map(([id, lab]) => (
@@ -130,6 +139,141 @@ export function DashboardEjecutivoPage() {
       </div>
 
       <p className="muted" style={{ fontSize: 11, textAlign: 'center' }}>Se actualiza automáticamente cada minuto · datos en vivo del sistema.</p>
+      </>)}
+    </div>
+  );
+}
+
+// ── Comparativo mes en curso vs mes anterior (mismo nro de días) ──
+function deltaInfo(act: number, ant: number) {
+  if (ant <= 0) return { txt: act > 0 ? 'nuevo' : '—', color: act > 0 ? 'var(--green)' : 'var(--muted)' };
+  const d = (act - ant) / ant;
+  return { txt: `${d >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(d * 100))}%`, color: d >= 0 ? 'var(--green)' : 'var(--red)' };
+}
+
+function KpiComp({ label, act, ant, money }: { label: string; act: number; ant: number; money?: boolean }) {
+  const di = deltaInfo(act, ant);
+  const fmt = (n: number) => money ? fmtMoneda(n) : n.toLocaleString('es-CO');
+  return (
+    <div className="card" style={{ padding: '12px 14px' }}>
+      <div className="muted" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px' }}>{label}</div>
+      <div className="mono" style={{ fontSize: 20, fontWeight: 800, marginTop: 2 }}>{fmt(act)}</div>
+      <div className="muted" style={{ fontSize: 11 }}>ant. {money ? corto(ant) : ant.toLocaleString('es-CO')} · <span style={{ color: di.color, fontWeight: 700 }}>{di.txt}</span></div>
+    </div>
+  );
+}
+
+function DimComp({ titulo, items, top = 12 }: { titulo: string; items: CompDim[]; top?: number }) {
+  const totalAct = items.reduce((s, x) => s + x.ventaAct, 0);
+  const max = Math.max(1, ...items.map(x => Math.max(x.ventaAct, x.ventaAnt)));
+  const lista = items.slice(0, top);
+  return (
+    <div className="card">
+      <strong style={{ fontSize: 13 }}>{titulo}</strong>
+      <div style={{ display: 'grid', gap: 9, marginTop: 10 }}>
+        {!lista.length && <p className="muted" style={{ fontSize: 12 }}>Sin datos.</p>}
+        {lista.map((x, i) => {
+          const di = deltaInfo(x.ventaAct, x.ventaAnt);
+          return (
+            <div key={i}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, marginBottom: 3 }}>
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.nombre}</span>
+                <span className="mono" style={{ flexShrink: 0 }}>{corto(x.ventaAct)} <span className="muted">· {totalAct > 0 ? `${Math.round((x.ventaAct / totalAct) * 100)}%` : '0%'}</span> · <span style={{ color: di.color, fontWeight: 700 }}>{di.txt}</span></span>
+              </div>
+              <div style={{ display: 'grid', gap: 2 }}>
+                <div title={`Actual: ${fmtMoneda(x.ventaAct)}`} style={{ height: 6, background: 'rgba(255,255,255,.06)', borderRadius: 20, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(x.ventaAct / max) * 100}%`, background: 'var(--accent)', borderRadius: 20 }} />
+                </div>
+                <div title={`Mes anterior: ${fmtMoneda(x.ventaAnt)}`} style={{ height: 4, background: 'rgba(255,255,255,.04)', borderRadius: 20, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(x.ventaAnt / max) * 100}%`, background: 'var(--muted)', borderRadius: 20 }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="muted" style={{ fontSize: 10, marginTop: 8 }}>▬ Barra superior = mes actual · ▬ inferior = mes anterior</div>
+    </div>
+  );
+}
+
+function celdaDelta(act: number, ant: number) {
+  const di = deltaInfo(act, ant);
+  return <span style={{ color: di.color, fontWeight: 700 }}>{di.txt}</span>;
+}
+
+function TablaVendComp({ items }: { items: CompVend[] }) {
+  if (!items.length) return <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Sin ventas en el período.</p>;
+  return (
+    <div style={{ overflowX: 'auto', marginTop: 8 }}>
+      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', minWidth: 640 }}>
+        <thead>
+          <tr className="muted" style={{ textAlign: 'right' }}>
+            <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 6px' }}>Vendedor</th>
+            <th style={{ fontWeight: 600, padding: '4px 6px' }}>Venta act.</th>
+            <th style={{ fontWeight: 600, padding: '4px 6px' }}>Venta ant.</th>
+            <th style={{ fontWeight: 600, padding: '4px 6px' }}>Δ Venta</th>
+            <th style={{ fontWeight: 600, padding: '4px 6px' }}>Pedidos</th>
+            <th style={{ fontWeight: 600, padding: '4px 6px' }}>Δ Ped.</th>
+            <th style={{ fontWeight: 600, padding: '4px 6px' }}>Impactos</th>
+            <th style={{ fontWeight: 600, padding: '4px 6px' }}>Δ Imp.</th>
+            <th style={{ fontWeight: 600, padding: '4px 6px' }}>Unid.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((v, i) => (
+            <tr key={i} style={{ textAlign: 'right', borderTop: '1px solid var(--border)' }}>
+              <td style={{ textAlign: 'left', padding: '5px 6px' }}>{v.nombre}{v.zona ? <span className="muted" style={{ fontSize: 10 }}> · {v.zona}</span> : ''}</td>
+              <td className="mono green" style={{ padding: '5px 6px' }}>{corto(v.ventaAct)}</td>
+              <td className="mono muted" style={{ padding: '5px 6px' }}>{corto(v.ventaAnt)}</td>
+              <td style={{ padding: '5px 6px' }}>{celdaDelta(v.ventaAct, v.ventaAnt)}</td>
+              <td className="mono" style={{ padding: '5px 6px' }}>{v.pedAct} <span className="muted">/ {v.pedAnt}</span></td>
+              <td style={{ padding: '5px 6px' }}>{celdaDelta(v.pedAct, v.pedAnt)}</td>
+              <td className="mono" style={{ padding: '5px 6px' }}>{v.cliAct} <span className="muted">/ {v.cliAnt}</span></td>
+              <td style={{ padding: '5px 6px' }}>{celdaDelta(v.cliAct, v.cliAnt)}</td>
+              <td className="mono" style={{ padding: '5px 6px' }}>{v.undAct.toLocaleString('es-CO')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ComparativoView() {
+  const { data, isFetching } = useQuery({
+    queryKey: ['comparativo-mes'], queryFn: () => reportesApi.comparativo(), refetchInterval: 60_000,
+  });
+  const t = data?.total;
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <div className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 13 }}>📅 {data?.actualLabel ?? '…'} <span className="muted">vs</span> {data?.anteriorLabel ?? '…'}</strong>
+        <span className="muted" style={{ fontSize: 11 }}>· comparación justa: primeros {data?.diasComparados ?? 0} días de cada mes{isFetching ? ' · actualizando…' : ''}</span>
+      </div>
+
+      {/* KPIs comparativos */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10 }}>
+        <KpiComp label="VENTA" act={t?.ventaAct ?? 0} ant={t?.ventaAnt ?? 0} money />
+        <KpiComp label="PEDIDOS" act={t?.pedAct ?? 0} ant={t?.pedAnt ?? 0} />
+        <KpiComp label="IMPACTOS (clientes)" act={t?.cliAct ?? 0} ant={t?.cliAnt ?? 0} />
+        <KpiComp label="UNIDADES" act={t?.undAct ?? 0} ant={t?.undAnt ?? 0} />
+      </div>
+
+      {/* Vendedores: venta, pedidos, impactos */}
+      <div className="card">
+        <strong style={{ fontSize: 13 }}>🥇 Por vendedor · venta · pedidos · impactos (act. / ant.)</strong>
+        <TablaVendComp items={data?.vendedor ?? []} />
+      </div>
+
+      {/* Dimensiones */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px,1fr))', gap: 12 }}>
+        <DimComp titulo="🌎 Por regional" items={data?.regional ?? []} />
+        <DimComp titulo="📦 Por categoría" items={data?.categoria ?? []} />
+        <DimComp titulo="🏷 Por marca" items={data?.marca ?? []} />
+      </div>
+
+      <p className="muted" style={{ fontSize: 11, textAlign: 'center' }}>Compara el mes en curso contra el mismo número de días del mes anterior · datos en vivo.</p>
     </div>
   );
 }

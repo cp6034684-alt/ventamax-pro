@@ -4,7 +4,7 @@ import type {
   Proveedor, MovimientoStock, ResumenReporte, VentaDia, Cartera,
   Periodo, RankingAsesores, PanelAdmin, Presente, BarrioFaceta, ClienteDetalle, ClienteMapa,
   VendedorRastreo, PosicionViva, Recorrido, RecorridoVendedor, Indicadores, Region, Bodega, GrupoDuplicado,
-  DashboardHistorico, Rentabilidad, Tarea, DashboardEjecutivo,
+  DashboardHistorico, Rentabilidad, Tarea, DashboardEjecutivo, ComparativoMes,
 } from './tipos';
 
 export const authApi = {
@@ -142,6 +142,7 @@ export const reportesApi = {
     Object.entries(p).forEach(([k, v]) => { if (v) q.set(k, String(v)); });
     return api<Indicadores>(`/reportes/indicadores?${q.toString()}`);
   },
+  comparativo: () => api<ComparativoMes>('/reportes/comparativo'),
   ejecutivo: (p: { periodo?: string; desde?: string; hasta?: string }) => {
     const q = new URLSearchParams();
     if (p.periodo) q.set('periodo', p.periodo);

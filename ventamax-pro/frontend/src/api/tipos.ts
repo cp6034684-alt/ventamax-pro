@@ -23,6 +23,14 @@ export interface ClienteDetalle extends Cliente {
 
 export interface BarrioFaceta { barrio: string; total: number; }
 
+export interface CompDim { nombre: string; ventaAct: number; ventaAnt: number; }
+export interface CompVend { nombre: string; zona?: string | null; ventaAct: number; ventaAnt: number; undAct: number; undAnt: number; pedAct: number; pedAnt: number; cliAct: number; cliAnt: number; }
+export interface ComparativoMes {
+  actualLabel: string; anteriorLabel: string; diaActual: number; diasComparados: number;
+  total: { ventaAct: number; ventaAnt: number; undAct: number; undAnt: number; pedAct: number; pedAnt: number; cliAct: number; cliAnt: number };
+  vendedor: CompVend[]; categoria: CompDim[]; regional: CompDim[]; marca: CompDim[];
+}
+
 export interface EjecItem { nombre: string; venta: number; unidades?: number; pedidos?: number; meta?: number | null; zona?: string | null; }
 export interface DashboardEjecutivo {
   rango: { desde: string; hasta: string }; periodo: string;
