@@ -30,7 +30,8 @@ tareasRouter.get('/', async (req, res, next) => {
           select: {
             id: true, consecutivo: true, estado: true, total: true, pagado: true,
             metodoPago: true, devuelta: true, montoDevuelto: true,
-            cliente: { select: { nombre: true, barrio: true, direccion: true } },
+            cliente: { select: { nombre: true, barrio: true, direccion: true, nit: true, ciudad: true } },
+            items: { select: { cantidad: true, producto: { select: { nombre: true } } } },
           },
         },
       },
@@ -61,5 +62,46 @@ tareasRouter.patch('/:id', requiereRol('ENTREGADOR', 'ADMIN', 'COADMIN', 'SUPERV
     if (req.body.estado) data.estado = req.body.estado;
     if (req.body.nombre) data.nombre = req.body.nombre;
     res.json(await (db as any).tarea.update({ where: { id: req.params.id }, data }));
+  } catch (e) { next(e); }
+});
+
+// PUT /api/tareas/:id — editar nombre, entregador y/o pedidos de la tarea
+tareasRouter.put('/:id', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const out = await db.$transaction(async (tx: any) => {
+      const data: any = {};
+      if (req.body.nombre) data.nombre = req.body.nombre;
+      if (req.body.entregadorId) data.entregadorId = req.body.entregadorId;
+      const t = await tx.tarea.update({ where: { id: req.params.id }, data });
+      const ids: string[] = Array.isArray(req.body.facturaIds) ? req.body.facturaIds : [];
+      if (Array.isArray(req.body.facturaIds)) {
+        // soltar las pendientes que ya no están seleccionadas
+        await tx.factura.updateMany({
+          where: { tareaId: t.id, estado: 'PENDIENTE', id: { notIn: ids.length ? ids : ['__none__'] } },
+          data: { tareaId: null },
+        });
+        // (re)asignar las seleccionadas que sigan pendientes
+        if (ids.length) await tx.factura.updateMany({
+          where: { id: { in: ids }, estado: 'PENDIENTE' },
+          data: { tareaId: t.id, entregadorId: t.entregadorId },
+        });
+      } else if (req.body.entregadorId) {
+        // propagar nuevo entregador a las pendientes de la tarea
+        await tx.factura.updateMany({ where: { tareaId: t.id, estado: 'PENDIENTE' }, data: { entregadorId: req.body.entregadorId } });
+      }
+      return t;
+    });
+    res.json(out);
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/tareas/:id — eliminar la tarea (libera sus pedidos pendientes)
+tareasRouter.delete('/:id', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    await db.$transaction(async (tx: any) => {
+      await tx.factura.updateMany({ where: { tareaId: req.params.id }, data: { tareaId: null } });
+      await tx.tarea.delete({ where: { id: req.params.id } });
+    });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });

@@ -58,7 +58,7 @@ export function EntregasReporte() {
           onEliminar={(id) => eliminar.mutate(id)} onVer={setVerTarea} />
       )}
 
-      {verTarea && <TareaDetalle tarea={verTarea} onCerrar={() => setVerTarea(null)} />}
+      {verTarea && <TareaDetalle tarea={verTarea} onCerrar={() => setVerTarea(null)} onCompletar={(id) => completar.mutate(id)} />}
       {editTarea && <TareaEditar tarea={editTarea} onCerrar={() => setEditTarea(null)} />}
 
       {sub === 'solicitudes' && (
@@ -177,31 +177,154 @@ function badgeEstado(f: TareaFactura) {
   return { txt: 'Pendiente', color: '#38bdf8' };
 }
 
-function TareaDetalle({ tarea, onCerrar }: { tarea: Tarea; onCerrar: () => void }) {
+const METODO_LABEL: Record<string, string> = {
+  EFECTIVO: 'Efectivo', TRANSFERENCIA: 'Transferencia', CREDITO: 'Paga otro día',
+  NEQUI: 'Nequi', DAVIPLATA: 'Daviplata',
+};
+const metodoLabel = (m?: string | null) => METODO_LABEL[String(m ?? '').toUpperCase()] ?? (m || 'Sin método');
+
+// Suma cantidades por producto a partir de un conjunto de facturas.
+function agruparItems(facs: TareaFactura[]) {
+  const m = new Map<string, number>();
+  for (const f of facs) for (const it of (f.items ?? [])) {
+    const nom = it.producto?.nombre ?? '—';
+    m.set(nom, (m.get(nom) ?? 0) + Number(it.cantidad));
+  }
+  return [...m.entries()].map(([nombre, und]) => ({ nombre, und })).sort((a, b) => b.und - a.und);
+}
+
+function TareaDetalle({ tarea, onCerrar, onCompletar }: { tarea: Tarea; onCerrar: () => void; onCompletar?: (id: string) => void }) {
+  const [sub, setSub] = useState<'entregas' | 'bodega' | 'dinero'>('entregas');
+  const [verPend, setVerPend] = useState(false);
+  const [bod, setBod] = useState<'inicial' | 'sobrantes'>('inicial');
+
   const s = statTarea(tarea);
+  const total = tarea.facturas.reduce((a, f) => a + Number(f.total), 0);
+  const entregadas = tarea.facturas.filter(f => entregada(f.estado));
+  const noEntregadas = tarea.facturas.filter(f => !entregada(f.estado) && f.estado !== 'DEVUELTA');
+  const recaudado = entregadas.reduce((a, f) => a + Number(f.total), 0);
+  const pendiente = total - recaudado;
+  const avance = total > 0 ? recaudado / total : 0;
+
+  // Por método de pago (entre las entregadas)
+  const porMetodo = new Map<string, number>();
+  for (const f of entregadas) porMetodo.set(metodoLabel(f.metodoPago), (porMetodo.get(metodoLabel(f.metodoPago)) ?? 0) + Number(f.total));
+
+  const itemsInicial = agruparItems(tarea.facturas);
+  const itemsSobrantes = agruparItems([...noEntregadas, ...tarea.facturas.filter(f => f.devuelta === 'PARCIAL' || f.devuelta === 'TOTAL' || f.estado === 'DEVUELTA')]);
+
+  const visibles = verPend ? noEntregadas : tarea.facturas;
+
+  const stops = tarea.facturas.map(f => [f.cliente?.direccion, f.cliente?.barrio, f.cliente?.ciudad].filter(Boolean).join(' ')).filter(Boolean);
+  const mapaUrl = stops.length
+    ? `https://www.google.com/maps/dir/${stops.map(encodeURIComponent).join('/')}`
+    : '';
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 130, display: 'grid', placeItems: 'center', padding: 16 }} onClick={onCerrar}>
-      <div className="card" style={{ width: '100%', maxWidth: 460, display: 'grid', gap: 10, maxHeight: '88vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
-        <div>
-          <strong style={{ fontSize: 16 }}>{tarea.nombre}</strong>
-          <div className="muted" style={{ fontSize: 11 }}>🚚 {tarea.entregador?.nombre ?? '—'} · {s.entregados}/{s.total} entregas · {fmtMoneda(s.valor)}</div>
+      <div className="card" style={{ width: '100%', maxWidth: 470, display: 'grid', gap: 10, maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <strong style={{ fontSize: 16 }}>{tarea.nombre}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>🚚 {tarea.entregador?.nombre ?? '—'} · {new Date(tarea.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+          </div>
+          <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 14 }} onClick={onCerrar}>✕</button>
         </div>
-        <div style={{ display: 'grid', gap: 4 }}>
-          {tarea.facturas.map(f => {
-            const b = badgeEstado(f);
-            return (
-              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.cliente?.nombre ?? '—'}</div>
-                  <div className="muted" style={{ fontSize: 10 }}>FAC-{String(f.consecutivo).padStart(4, '0')}{f.cliente?.barrio ? ` · ${f.cliente.barrio}` : ''}</div>
+
+        {/* KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          <Mini n={s.total} label="PEDIDOS" />
+          <Mini n={s.pend} label="PENDIENTES" color={s.pend ? 'var(--orange)' : 'var(--green)'} />
+          <Mini n={fmtMoneda(total)} label="TOTAL" color="var(--accent)" />
+        </div>
+
+        {/* Sub-pestañas */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {([['entregas', '📦 Entregas'], ['bodega', '🏭 Bodega'], ['dinero', '💵 Dinero']] as const).map(([id, lab]) => (
+            <button key={id} className={`btn ${sub === id ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 11, padding: '6px 4px' }} onClick={() => setSub(id)}>{lab}</button>
+          ))}
+        </div>
+
+        {sub === 'entregas' && (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className={`btn ${!verPend ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 11, padding: '5px' }} onClick={() => setVerPend(false)}>Todos ({tarea.facturas.length})</button>
+              <button className={`btn ${verPend ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 11, padding: '5px' }} onClick={() => setVerPend(true)}>Pendientes ({noEntregadas.length})</button>
+            </div>
+            {!visibles.length && <p className="muted" style={{ fontSize: 12 }}>Sin pedidos en esta vista.</p>}
+            {visibles.map(f => {
+              const b = badgeEstado(f);
+              const dir = [f.cliente?.direccion, f.cliente?.barrio, f.cliente?.ciudad].filter(Boolean).join(' · ');
+              return (
+                <div key={f.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <strong style={{ fontSize: 13, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.cliente?.nombre ?? '—'}</strong>
+                    <span className="muted mono" style={{ fontSize: 10 }}>FAC-{String(f.consecutivo).padStart(4, '0')}</span>
+                  </div>
+                  {(f.cliente?.nit || dir) && (
+                    <div className="muted" style={{ fontSize: 10 }}>{f.cliente?.nit ? `${f.cliente.nit} · ` : ''}{dir}</div>
+                  )}
+                  {!!(f.items?.length) && (
+                    <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>
+                      {f.items!.map((it, k) => <span key={k}>{k ? ' · ' : ''}{it.cantidad}× {it.producto?.nombre ?? '—'}</span>)}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <span className="mono green" style={{ fontSize: 13, flex: 1 }}>{fmtMoneda(f.total)}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: b.color }}>{b.txt}</span>
+                  </div>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: b.color, flexShrink: 0 }}>{b.txt}</span>
-                <span className="mono" style={{ fontSize: 13, flexShrink: 0, minWidth: 70, textAlign: 'right' }}>{fmtMoneda(f.total)}</span>
+              );
+            })}
+          </div>
+        )}
+
+        {sub === 'bodega' && (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className={`btn ${bod === 'inicial' ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 11, padding: '5px' }} onClick={() => setBod('inicial')}>Inicial</button>
+              <button className={`btn ${bod === 'sobrantes' ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 11, padding: '5px' }} onClick={() => setBod('sobrantes')}>Sobrantes ({itemsSobrantes.reduce((a, x) => a + x.und, 0)})</button>
+            </div>
+            <p className="muted" style={{ fontSize: 11 }}>
+              {bod === 'inicial' ? 'Inventario total a cargar para completar la tarea:' : 'Productos que aún no han sido entregados o quedaron por devoluciones:'}
+            </p>
+            {(bod === 'inicial' ? itemsInicial : itemsSobrantes).map(it => (
+              <div key={it.nombre} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 12 }}>{it.nombre}</span>
+                <span className="mono accent" style={{ fontSize: 12, fontWeight: 700 }}>{it.und} und</span>
               </div>
-            );
-          })}
+            ))}
+            {!(bod === 'inicial' ? itemsInicial : itemsSobrantes).length && <p className="muted" style={{ fontSize: 12 }}>{bod === 'inicial' ? 'Sin productos.' : 'Nada pendiente. Todo entregado.'}</p>}
+          </div>
+        )}
+
+        {sub === 'dinero' && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <Mini n={fmtMoneda(total)} label="TOTAL A COBRAR" color="var(--accent)" />
+              <Mini n={fmtMoneda(recaudado)} label="YA RECAUDADO" color="var(--green)" />
+              <Mini n={fmtMoneda(pendiente)} label="PENDIENTE POR COBRAR" color="var(--orange)" />
+              <Mini n={pct(avance)} label="AVANCE" color="var(--accent)" />
+            </div>
+            {barra(avance)}
+            <div className="muted" style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>POR MÉTODO DE PAGO</div>
+            {![...porMetodo].length && <p className="muted" style={{ fontSize: 12 }}>Aún no hay cobros registrados.</p>}
+            {[...porMetodo.entries()].map(([m, v]) => (
+              <div key={m} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <span>{m}</span><span className="mono green">{fmtMoneda(v)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={onCerrar}>Cerrar</button>
+          {mapaUrl && <a className="btn btn-ghost" style={{ flex: 1, textAlign: 'center', textDecoration: 'none' }} href={mapaUrl} target="_blank" rel="noreferrer">🗺 Ver mapa</a>}
+          {onCompletar && tarea.estado !== 'completada' && (
+            <button className="btn" style={{ flex: 1, background: 'var(--green)' }}
+              onClick={() => confirm(`¿Marcar "${tarea.nombre}" como completada?`) && (onCompletar(tarea.id), onCerrar())}>✓ Completar</button>
+          )}
         </div>
-        <button className="btn btn-ghost" onClick={onCerrar}>Cerrar</button>
       </div>
     </div>
   );

@@ -162,10 +162,12 @@ export interface Rentabilidad {
 }
 
 // ── Tareas de entrega (programación) ──
+export interface TareaItem { cantidad: number; producto?: { nombre: string } | null; }
 export interface TareaFactura {
   id: string; consecutivo: number; estado: string; total: string; pagado: string;
   metodoPago?: string | null; devuelta?: string; montoDevuelto?: string;
-  cliente?: { nombre: string; barrio?: string | null; direccion?: string | null };
+  cliente?: { nombre: string; barrio?: string | null; direccion?: string | null; nit?: string | null; ciudad?: string | null };
+  items?: TareaItem[];
 }
 export interface Tarea {
   id: string; nombre: string; entregadorId: string; fecha: string; estado: string;
