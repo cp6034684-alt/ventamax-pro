@@ -711,6 +711,153 @@ reportesRouter.get('/rentabilidad', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/reportes/ejecutivo?periodo=&desde=&hasta= — Dashboard ejecutivo (KPIs + comparativos + proyeccion + alertas).
+// ADMIN/COADMIN ven todo; SUPERVISOR ve su equipo (vendedores a su cargo + el mismo).
+reportesRouter.get('/ejecutivo', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    // ── Rango segun periodo ──
+    const periodo = String(req.query.periodo ?? 'mes');
+    const hasta = req.query.hasta ? new Date(String(req.query.hasta) + 'T23:59:59') : new Date();
+    let desde = new Date();
+    if (periodo === 'rango' && req.query.desde) { desde = new Date(String(req.query.desde)); }
+    else if (periodo === 'semana') { desde = new Date(); desde.setDate(desde.getDate() - 6); desde.setHours(0, 0, 0, 0); }
+    else if (periodo === 'trimestre') { desde = new Date(); desde.setMonth(desde.getMonth() - 2, 1); desde.setHours(0, 0, 0, 0); }
+    else { desde = new Date(); desde.setDate(1); desde.setHours(0, 0, 0, 0); }
+
+    // ── Alcance por rol (supervisor = su equipo) ──
+    let scopeIds: string[] | null = null;
+    if (req.usuario!.rol === 'SUPERVISOR') {
+      const equipo = await db.usuario.findMany({
+        where: ({ OR: [{ supervisorId: req.usuario!.id }, { id: req.usuario!.id }] } as any),
+        select: { id: true },
+      });
+      scopeIds = equipo.map((u: any) => u.id);
+      if (!scopeIds.length) scopeIds = [req.usuario!.id];
+    }
+    const fScope = scopeIds ? Prisma.sql`AND f."vendedorId" IN (${Prisma.join(scopeIds)})` : Prisma.empty;
+
+    // Fragmentos base
+    const baseI = (d: Date, h: Date) => Prisma.sql`f.estado <> 'ANULADA' AND f."tipoDoc" = 'VENTA' AND f."creadoEn" >= ${d} AND f."creadoEn" <= ${h} ${fScope}`;
+
+    // Fechas auxiliares
+    const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
+    const hace6 = new Date(); hace6.setMonth(hace6.getMonth() - 5, 1); hace6.setHours(0, 0, 0, 0);
+    const ahora = new Date();
+    const diaActual = ahora.getDate();
+    const diasMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
+
+    const [kpiRows, pedRows, devRows, regional, vendedor, supervisor, marca, categoria, zona, meses, diario, metaRow, mtdVend] = await Promise.all([
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(SUM(i.total),0)::float AS venta,
+               COALESCE(SUM(i.total/(1+COALESCE(p.iva,0)/100.0)),0)::float AS ventaneta,
+               COALESCE(SUM(p."precioCompra"*i.cantidad),0)::float AS costo,
+               COALESCE(SUM(i.cantidad),0)::int AS unidades
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        WHERE ${baseI(desde, hasta)}`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COUNT(*)::int AS pedidos, COUNT(DISTINCT f."clienteId")::int AS clientes
+        FROM facturas f WHERE ${baseI(desde, hasta)}`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(SUM(ABS(i.total)),0)::float AS monto, COUNT(DISTINCT f.id)::int AS docs
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId"
+        WHERE f.estado <> 'ANULADA' AND f."tipoDoc"='DEVOLUCION' AND f."creadoEn" >= ${desde} AND f."creadoEn" <= ${hasta} ${fScope}`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(r.nombre,'Sin región') AS nombre, COALESCE(SUM(i.total),0)::float AS venta, COALESCE(SUM(i.cantidad),0)::int AS unidades
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        JOIN usuarios u ON u.id=f."vendedorId" LEFT JOIN regiones r ON r.id=u."regionId"
+        WHERE ${baseI(desde, hasta)} GROUP BY r.nombre ORDER BY venta DESC`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT u.nombre AS nombre, u.zona AS zona, COALESCE(SUM(i.total),0)::float AS venta,
+               COALESCE(SUM(i.cantidad),0)::int AS unidades, COUNT(DISTINCT f.id)::int AS pedidos, MAX(u.meta)::float AS meta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        JOIN usuarios u ON u.id=f."vendedorId"
+        WHERE ${baseI(desde, hasta)} GROUP BY u.id, u.nombre, u.zona ORDER BY venta DESC LIMIT 60`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(su.nombre,'Sin supervisor') AS nombre, COALESCE(SUM(i.total),0)::float AS venta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        JOIN usuarios u ON u.id=f."vendedorId" LEFT JOIN usuarios su ON su.id=u."supervisorId"
+        WHERE ${baseI(desde, hasta)} GROUP BY su.nombre ORDER BY venta DESC`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM(p.marca),''),'Sin marca') AS nombre, COALESCE(SUM(i.total),0)::float AS venta, COALESCE(SUM(i.cantidad),0)::int AS unidades
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        WHERE ${baseI(desde, hasta)} GROUP BY 1 ORDER BY venta DESC LIMIT 30`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM(p.categoria),''),'Sin categoría') AS nombre, COALESCE(SUM(i.total),0)::float AS venta, COALESCE(SUM(i.cantidad),0)::int AS unidades
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        WHERE ${baseI(desde, hasta)} GROUP BY 1 ORDER BY venta DESC LIMIT 30`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM(u.zona),''),'Sin zona') AS nombre, COALESCE(SUM(i.total),0)::float AS venta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId"
+        JOIN usuarios u ON u.id=f."vendedorId"
+        WHERE ${baseI(desde, hasta)} GROUP BY 1 ORDER BY venta DESC LIMIT 40`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT to_char(date_trunc('month', f."creadoEn"),'YYYY-MM') AS mes, COALESCE(SUM(i.total),0)::float AS venta, COALESCE(SUM(i.cantidad),0)::int AS unidades
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId"
+        WHERE f.estado <> 'ANULADA' AND f."tipoDoc"='VENTA' AND f."creadoEn" >= ${hace6} ${fScope}
+        GROUP BY 1 ORDER BY 1`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT to_char(f."creadoEn",'YYYY-MM-DD') AS dia, COALESCE(SUM(i.total),0)::float AS venta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId"
+        WHERE ${baseI(desde, hasta)} GROUP BY 1 ORDER BY 1`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(SUM(meta),0)::float AS meta FROM usuarios
+        WHERE rol='VENDEDOR' AND activo=true ${scopeIds ? Prisma.sql`AND id IN (${Prisma.join(scopeIds)})` : Prisma.empty}`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT u.id AS id, u.nombre AS nombre, COALESCE(SUM(i.total),0)::float AS venta, MAX(u.meta)::float AS meta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId"
+        JOIN usuarios u ON u.id=f."vendedorId"
+        WHERE ${baseI(inicioMes, ahora)} GROUP BY u.id, u.nombre`),
+    ]);
+
+    const k = kpiRows[0] ?? {}; const ped = pedRows[0] ?? {}; const dev = devRows[0] ?? {};
+    const venta = Number(k.venta || 0), ventaNeta = Number(k.ventaneta || 0), costo = Number(k.costo || 0);
+    const ganancia = ventaNeta - costo;
+    const pedidos = Number(ped.pedidos || 0), clientes = Number(ped.clientes || 0), unidades = Number(k.unidades || 0);
+
+    // Proyeccion de cierre del mes en curso (ritmo diario)
+    const ventaMtd = mtdVend.reduce((s: number, r: any) => s + Number(r.venta || 0), 0);
+    const proyeccion = diaActual > 0 ? (ventaMtd / diaActual) * diasMes : 0;
+    const metaTotal = Number(metaRow[0]?.meta || 0);
+
+    // Alertas de venta baja (mes en curso, ritmo proyectado vs meta del vendedor)
+    const vendConVenta = new Set(mtdVend.filter((r: any) => Number(r.venta) > 0).map((r: any) => r.id));
+    const todosVend = await db.usuario.findMany({
+      where: ({ rol: 'VENDEDOR', activo: true, ...(scopeIds ? { id: { in: scopeIds } } : {}) } as any),
+      select: { id: true, nombre: true, meta: true },
+    });
+    const alertas: any[] = [];
+    for (const v of todosVend) {
+      const fila = mtdVend.find((r: any) => r.id === v.id);
+      const vMtd = Number(fila?.venta || 0);
+      const meta = Number((v as any).meta || 0);
+      if (vMtd === 0) { alertas.push({ nombre: v.nombre, tipo: 'sin_venta', detalle: 'Sin ventas este mes', cumplimiento: 0 }); continue; }
+      if (meta > 0) {
+        const proy = (vMtd / diaActual) * diasMes;
+        const cumpl = proy / meta;
+        if (cumpl < 0.7) alertas.push({ nombre: v.nombre, tipo: 'bajo', detalle: `Proyección ${Math.round(cumpl * 100)}% de su meta`, cumplimiento: cumpl });
+      }
+    }
+    alertas.sort((a, b) => a.cumplimiento - b.cumplimiento);
+
+    res.json({
+      rango: { desde, hasta }, periodo,
+      kpis: {
+        venta, ventaNeta, costo, ganancia,
+        margen: ventaNeta > 0 ? ganancia / ventaNeta : 0,
+        unidades, pedidos, clientes,
+        ticket: pedidos > 0 ? venta / pedidos : 0,
+        dropSize: pedidos > 0 ? unidades / pedidos : 0,
+        devolucionesMonto: Number(dev.monto || 0), devolucionesDocs: Number(dev.docs || 0),
+      },
+      participacion: { regional, vendedor, supervisor, marca, categoria, zona },
+      comparativos: { meses },
+      seguimiento: diario,
+      proyeccion: { ventaMtd, proyeccion, metaTotal, diaActual, diasMes, cumplimiento: metaTotal > 0 ? proyeccion / metaTotal : 0 },
+      alertas: alertas.slice(0, 20),
+    });
+  } catch (e) { next(e); }
+});
+
 // GET /api/reportes/exportar-facturas?desde=&hasta= — filas planas para Excel (máx 10.000)
 reportesRouter.get('/exportar-facturas', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
   try {

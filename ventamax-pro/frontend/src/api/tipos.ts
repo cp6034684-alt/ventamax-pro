@@ -23,6 +23,17 @@ export interface ClienteDetalle extends Cliente {
 
 export interface BarrioFaceta { barrio: string; total: number; }
 
+export interface EjecItem { nombre: string; venta: number; unidades?: number; pedidos?: number; meta?: number | null; zona?: string | null; }
+export interface DashboardEjecutivo {
+  rango: { desde: string; hasta: string }; periodo: string;
+  kpis: { venta: number; ventaNeta: number; costo: number; ganancia: number; margen: number; unidades: number; pedidos: number; clientes: number; ticket: number; dropSize: number; devolucionesMonto: number; devolucionesDocs: number };
+  participacion: { regional: EjecItem[]; vendedor: EjecItem[]; supervisor: EjecItem[]; marca: EjecItem[]; categoria: EjecItem[]; zona: EjecItem[] };
+  comparativos: { meses: { mes: string; venta: number; unidades: number }[] };
+  seguimiento: { dia: string; venta: number }[];
+  proyeccion: { ventaMtd: number; proyeccion: number; metaTotal: number; diaActual: number; diasMes: number; cumplimiento: number };
+  alertas: { nombre: string; tipo: string; detalle: string; cumplimiento: number }[];
+}
+
 export interface Actividad { id: string; tipo: string; detalle?: string | null; creadoEn: string; nombre: string; alcance?: string; }
 
 export type EstadoMapa = 'pendiente' | 'vendido' | 'no_compra';

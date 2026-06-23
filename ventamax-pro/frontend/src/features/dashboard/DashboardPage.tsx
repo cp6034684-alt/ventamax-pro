@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { reportesApi, facturasApi, presenciaApi } from '../../api/servicios';
 import { pendientes, reintentarCola } from '../../api/colaOffline';
@@ -95,6 +96,19 @@ function DashboardAdmin() {
 
   return (
     <div style={{ display: 'grid', gap: 14, maxWidth: 700, margin: '0 auto' }}>
+
+      {/* ── Acceso al Dashboard Ejecutivo ── */}
+      <Link to="/dashboard-ejecutivo" className="card" style={{
+        display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'var(--text)',
+        background: 'linear-gradient(135deg, rgba(0,68,255,.25), rgba(0,229,255,.12))', border: '1px solid rgba(0,229,255,.35)',
+      }}>
+        <span style={{ fontSize: 26 }}>📊</span>
+        <div style={{ flex: 1 }}>
+          <strong style={{ fontSize: 15 }}>Dashboard Ejecutivo</strong>
+          <div className="muted" style={{ fontSize: 12 }}>KPIs, participación, comparativos, proyección y alertas · en línea</div>
+        </div>
+        <span style={{ fontSize: 18, color: 'var(--accent)' }}>›</span>
+      </Link>
 
       {/* ── Presencia en tiempo real ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

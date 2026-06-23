@@ -4,6 +4,7 @@ import { RutaProtegida } from './auth/RutaProtegida';
 import { Layout } from './components/Layout';
 import { LoginPage } from './features/login/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
+import { DashboardEjecutivoPage } from './features/dashboard/DashboardEjecutivoPage';
 import { ClientesPage } from './features/clientes/ClientesPage';
 import { VentaPage } from './features/venta/VentaPage';
 import { ProductosPage } from './features/productos/ProductosPage';
@@ -81,6 +82,7 @@ export function App() {
           <Route element={<RutaProtegida roles={['ADMIN', 'COADMIN', 'SUPERVISOR']} />}>
             <Route element={<Layout />}>
               <Route path="/reportes" element={<ReportesPage />} />
+              <Route path="/dashboard-ejecutivo" element={<DashboardEjecutivoPage />} />
               <Route path="/usuarios" element={<UsuariosPage />} />
               <Route path="/rastreo" element={<RastreoPage />} />
             </Route>
