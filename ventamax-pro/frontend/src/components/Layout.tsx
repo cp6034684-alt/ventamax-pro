@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { presenciaApi } from '../api/servicios';
 import type { Rol } from '../api/tipos';
+import { SyncBanner } from './SyncBanner';
 
 interface NavItem { ruta: string; icono: string; etiqueta: string; }
 
@@ -108,6 +109,8 @@ export function Layout() {
         <button onClick={cerrarSesion} title="Cerrar sesión" aria-label="Cerrar sesión"
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--red)', padding: 0 }}>⏻</button>
       </header>
+
+      <SyncBanner />
 
       <main style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
         <Outlet />

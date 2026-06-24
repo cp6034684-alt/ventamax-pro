@@ -124,8 +124,8 @@ export function VentaPage() {
       qc.invalidateQueries({ queryKey: ['productos'] });
     } catch (e: any) {
       if (!navigator.onLine || /fetch|network/i.test(e.message)) {
-        encolarVenta(venta);
-        setMensaje({ tipo: 'offline', texto: 'Sin conexión. La venta se guardó y se enviará automáticamente.' });
+        encolarVenta(venta, { cliente: cliente.nombre, unidades: carrito.reduce((s, i) => s + i.cantidad, 0), total, fecha: Date.now() });
+        setMensaje({ tipo: 'offline', texto: 'Sin conexión. La venta se guardó y aparecerá en el aviso "pedidos sin subir" hasta que se sincronice.' });
         setCarrito([]); setDescuento(0);
       } else {
         setMensaje({ tipo: 'error', texto: e.message });

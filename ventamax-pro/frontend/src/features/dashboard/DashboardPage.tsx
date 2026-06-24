@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { reportesApi, facturasApi, presenciaApi } from '../../api/servicios';
-import { pendientes, reintentarCola } from '../../api/colaOffline';
 import { fmtMoneda } from '../../api/formato';
 import { useAuth } from '../../auth/AuthContext';
 import { FacturaDetalle } from '../../components/FacturaDetalle';
@@ -356,7 +355,6 @@ function fmtFechaHora(iso: string) {
 // Resumen histórico, Tu día (ruta/riesgo), Mi semana y lista de facturas.
 // ──────────────────────────────────────────────────────────────
 function DashboardVendedor() {
-  const [enCola, setEnCola] = useState(pendientes());
   const [filtroFac, setFiltroFac] = useState<FiltroFac>('todo');
   const [rango, setRango] = useState({ desde: localISO(new Date()), hasta: localISO(new Date()) });
   const [mostrarRango, setMostrarRango] = useState(false);
@@ -391,12 +389,6 @@ function DashboardVendedor() {
     (LABEL_METODO[f.metodoPago ?? ''] ?? '').toLowerCase().includes(filtro),
   );
 
-  const sincronizar = async () => {
-    const ok = await reintentarCola();
-    setEnCola(pendientes());
-    alert(ok > 0 ? `${ok} venta(s) sincronizada(s)` : 'Sin conexión o nada pendiente');
-  };
-
   const maxSemana = Math.max(1, ...(semana ?? []).map(d => d.total));
 
   const lista = (tab === 'cat' ? hist?.porCategoria : hist?.porProducto) ?? [];
@@ -406,16 +398,6 @@ function DashboardVendedor() {
 
   return (
     <div style={{ display: 'grid', gap: 14, maxWidth: 700, margin: '0 auto' }}>
-
-      {enCola > 0 && (
-        <div className="card" style={{ borderColor: 'var(--orange)' }}>
-          <strong style={{ color: 'var(--orange)' }}>{enCola} venta(s) sin sincronizar</strong>
-          <p className="muted" style={{ fontSize: 12, margin: '4px 0 10px' }}>
-            Se guardaron sin conexión y se enviarán al servidor.
-          </p>
-          <button className="btn" onClick={sincronizar}>Sincronizar ahora</button>
-        </div>
-      )}
 
       {/* ── Facturas + filtros de periodo ── */}
       <div>
