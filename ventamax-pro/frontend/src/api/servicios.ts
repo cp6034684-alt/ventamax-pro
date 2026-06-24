@@ -115,7 +115,7 @@ export const usuariosApi = {
   siguienteTicket: (ciudad: string, canal: string) => api<{ ticket: string }>(`/usuarios/siguiente-ticket?ciudad=${encodeURIComponent(ciudad)}&canal=${encodeURIComponent(canal)}`),
   crear: (d: { nombre: string; usuario: string; pin: string; rol: string; zona?: string; documento?: string; ciudad?: string; telefono?: string; canal?: string; meta?: number; listasPrecios?: string[]; regionId?: string | null; supervisorId?: string | null }) =>
     api<Usuario>('/usuarios', { method: 'POST', body: JSON.stringify(d) }),
-  actualizar: (id: string, d: Partial<{ nombre: string; pin: string; activo: boolean; zona: string; documento: string; ciudad: string; telefono: string; meta: number; rol: string; canal: string; listasPrecios: string[]; regionId: string | null; supervisorId: string | null }>) =>
+  actualizar: (id: string, d: Partial<{ nombre: string; usuario: string; pin: string; activo: boolean; zona: string; documento: string; ciudad: string; telefono: string; meta: number; rol: string; canal: string; listasPrecios: string[]; regionId: string | null; supervisorId: string | null }>) =>
     api<Usuario>(`/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
 };
 

@@ -60,7 +60,7 @@ export function UsuariosPage() {
             const fd = new FormData(e.currentTarget);
             crear.mutate({
               nombre: String(fd.get('nombre')),
-              usuario: String(fd.get('usuario')).toLowerCase().trim(),
+              usuario: String(fd.get('usuario')).toLowerCase().trim().replace(/[@\s]/g, ''),
               pin: String(fd.get('pin')),
               rol: rolN,
               documento: String(fd.get('documento') || '') || undefined,
@@ -196,6 +196,7 @@ export function UsuariosPage() {
                   actualizar.mutate({
                     id: u.id,
                     nombre: String(fd.get('nombre') || '').trim() || undefined,
+                    usuario: String(fd.get('usuario') || '').toLowerCase().trim().replace(/[@\s]/g, '') || undefined,
                     rol: String(fd.get('rol') || '') || undefined,
                     // Vendedor: el canal recalcula el ticket y las listas en el servidor (no se edita el ticket a mano).
                     canal: esVend ? (String(fd.get('canal') || '') || undefined) : undefined,
@@ -210,6 +211,7 @@ export function UsuariosPage() {
                   setEditId(null);
                 }}>
                 <input name="nombre" defaultValue={u.nombre} placeholder="Nombre completo" />
+                <input name="usuario" defaultValue={u.usuario} placeholder="Usuario de acceso (login)" autoCapitalize="none" />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <select name="rol" defaultValue={u.rol} style={{ flex: 1 }}>
                     <option value="VENDEDOR">Vendedor</option>

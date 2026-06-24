@@ -75,6 +75,7 @@ usuariosRouter.post('/', validarBody(usuarioSchema), async (req, res, next) => {
       return res.status(403).json({ error: 'Un supervisor no puede crear administradores' });
     }
     const { pin, canal, ...resto } = req.body as any;
+    if (resto.usuario) resto.usuario = String(resto.usuario).toLowerCase().replace(/[@\s]/g, '');
     // Vendedor o supervisor con ciudad: el sistema asigna el ticket (consecutivo de la ciudad),
     // la región según la ciudad y las listas de precio según el canal.
     // El supervisor usa el canal SUPERVISOR (ticket CIU-NN-SUP).
@@ -113,6 +114,7 @@ usuariosRouter.patch('/:id', async (req, res, next) => {
   try {
     const data: any = {};
     if (req.body.nombre) data.nombre = req.body.nombre;
+    if (req.body.usuario !== undefined) data.usuario = String(req.body.usuario).toLowerCase().replace(/[@\s]/g, '');
     if (req.body.pin) data.pinHash = await bcrypt.hash(req.body.pin, 10);
     if (req.body.activo !== undefined) data.activo = req.body.activo;
     if (req.body.zona !== undefined) data.zona = req.body.zona;
