@@ -23,6 +23,14 @@ export interface ClienteDetalle extends Cliente {
 
 export interface BarrioFaceta { barrio: string; total: number; }
 
+export interface MesKpi { mes: string; label: string; venta: number; unidades: number; pedidos: number; clientes: number; }
+export interface DimPivot { nombre: string; total: number; valores: Record<string, number>; }
+export interface CompararMeses {
+  meses: string[]; labels: string[]; kpis: MesKpi[];
+  series: Record<string, { dia: number; venta: number }[]>;
+  dimensiones: { marca: DimPivot[]; categoria: DimPivot[]; regional: DimPivot[]; vendedor: DimPivot[] };
+}
+
 export interface CarteraFacturaDet extends Factura { saldo: number; diasMora: number; }
 export interface CarteraCliente {
   id: string; nombre: string; nit?: string; barrio?: string; telefono?: string; direccion?: string; ciudad?: string;

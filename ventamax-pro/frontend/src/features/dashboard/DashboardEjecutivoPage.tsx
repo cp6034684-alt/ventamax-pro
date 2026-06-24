@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { reportesApi } from '../../api/servicios';
 import { fmtMoneda } from '../../api/formato';
-import type { EjecItem, ComparativoMes, CompDim, CompVend, CarteraCliente, CarteraFacturaDet } from '../../api/tipos';
+import type { EjecItem, ComparativoMes, CompDim, CompVend, CarteraCliente, CarteraFacturaDet, DimPivot } from '../../api/tipos';
 
 const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const hoyISO = () => { const d = new Date(); const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); };
@@ -22,7 +22,7 @@ function corto(n: number) {
 const PALETA = ['#00e5ff', '#34d399', '#c084fc', '#fbbf24', '#fb7185', '#38bdf8', '#a3e635', '#f472b6', '#f97316', '#22d3ee'];
 
 export function DashboardEjecutivoPage() {
-  const [vista, setVista] = useState<'resumen' | 'comparativo' | 'cartera'>('resumen');
+  const [vista, setVista] = useState<'resumen' | 'comparativo' | 'multimes' | 'cartera'>('resumen');
   const [periodo, setPeriodo] = useState('mes');
   const [mesesComp, setMesesComp] = useState(6);
   const [desde, setDesde] = useState(inicioMesISO());
@@ -53,12 +53,12 @@ export function DashboardEjecutivoPage() {
 
       {/* Conmutador de vista */}
       <div style={{ display: 'flex', gap: 8 }}>
-        {([['resumen', '📊 Resumen'], ['comparativo', '📅 Mes vs mes anterior'], ['cartera', '💳 Cartera']] as const).map(([id, lab]) => (
+        {([['resumen', '📊 Resumen'], ['comparativo', '📅 Mes vs mes anterior'], ['multimes', '📐 Comparar meses'], ['cartera', '💳 Cartera']] as const).map(([id, lab]) => (
           <button key={id} className={`btn ${vista === id ? '' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 12, padding: '8px' }} onClick={() => setVista(id)}>{lab}</button>
         ))}
       </div>
 
-      {vista === 'comparativo' ? <ComparativoView /> : vista === 'cartera' ? <CarteraView /> : (<>
+      {vista === 'comparativo' ? <ComparativoView /> : vista === 'multimes' ? <CompararMesesView /> : vista === 'cartera' ? <CarteraView /> : (<>
       {/* Selector de periodo */}
       <div className="card" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px' }}>
         {([['semana', 'Semana'], ['mes', 'Mes'], ['trimestre', 'Trimestre'], ['rango', 'Rango']] as const).map(([id, lab]) => (
@@ -541,6 +541,190 @@ function CarteraView() {
       })}
 
       {facSel && <FacturaDetalle factura={facSel} onCerrar={() => setFacSel(null)} />}
+    </div>
+  );
+}
+
+// ── Comparar meses (multi-mes tipo Power BI) ──
+function labelMes(m: string) { const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']; const [y, mm] = m.split('-'); return `${MES[Number(mm) - 1]} ${y}`; }
+
+// Líneas múltiples: venta por día del mes, una línea por mes seleccionado.
+function LineasMeses({ series, meses }: { series: Record<string, { dia: number; venta: number }[]>; meses: string[] }) {
+  const W = 360, H = 150, P = 8;
+  const maxDia = Math.max(28, ...meses.flatMap(m => (series[m] ?? []).map(p => p.dia)));
+  const maxV = Math.max(1, ...meses.flatMap(m => (series[m] ?? []).map(p => p.venta)));
+  const x = (d: number) => P + ((d - 1) / (maxDia - 1)) * (W - 2 * P);
+  const y = (v: number) => H - P - (v / maxV) * (H - 2 * P);
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 160 }} preserveAspectRatio="none">
+        {meses.map((m, i) => {
+          const pts = [...(series[m] ?? [])].sort((a, b) => a.dia - b.dia).map(p => `${x(p.dia)},${y(p.venta)}`).join(' ');
+          return <polyline key={m} points={pts} fill="none" stroke={PALETA[i % PALETA.length]} strokeWidth={2} />;
+        })}
+      </svg>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
+        {meses.map((m, i) => (
+          <span key={m} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+            <span style={{ width: 12, height: 3, background: PALETA[i % PALETA.length], borderRadius: 2 }} />{labelMes(m)}
+          </span>
+        ))}
+      </div>
+      <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>Venta por día del mes · cada línea es un mes.</div>
+    </div>
+  );
+}
+
+// Barras agrupadas por dimensión: una barra por mes para cada item.
+function BarrasAgrupadas({ items, meses }: { items: DimPivot[]; meses: string[] }) {
+  const max = Math.max(1, ...items.flatMap(it => meses.map(m => it.valores[m] ?? 0)));
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {!items.length && <p className="muted" style={{ fontSize: 12 }}>Sin datos.</p>}
+      {items.map(it => (
+        <div key={it.nombre}>
+          <div style={{ fontSize: 12, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.nombre}</div>
+          <div style={{ display: 'grid', gap: 3 }}>
+            {meses.map((m, i) => {
+              const v = it.valores[m] ?? 0;
+              return (
+                <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ flex: 1, height: 9, background: 'rgba(255,255,255,.05)', borderRadius: 20, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(v / max) * 100}%`, background: PALETA[i % PALETA.length], borderRadius: 20 }} />
+                  </div>
+                  <span className="mono" style={{ fontSize: 10, minWidth: 78, textAlign: 'right' }}><span className="muted">{labelMes(m).slice(0, 3)}</span> {corto(v)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Treemap de participación (un mes).
+function Treemap({ items, mes }: { items: DimPivot[]; mes: string }) {
+  const datos = items.map(it => ({ nombre: it.nombre, v: it.valores[mes] ?? 0 })).filter(d => d.v > 0).sort((a, b) => b.v - a.v).slice(0, 16);
+  const total = datos.reduce((s, d) => s + d.v, 0) || 1;
+  const W = 100, H = 62; // viewBox units
+  const nRows = Math.max(1, Math.round(Math.sqrt(datos.length)));
+  const target = total / nRows;
+  const rows: { items: typeof datos; sum: number }[] = [];
+  let cur: typeof datos = [], curSum = 0;
+  for (const d of datos) { cur.push(d); curSum += d.v; if (curSum >= target && rows.length < nRows - 1) { rows.push({ items: cur, sum: curSum }); cur = []; curSum = 0; } }
+  if (cur.length) rows.push({ items: cur, sum: curSum });
+  const rects: { nombre: string; v: number; x: number; y: number; w: number; h: number; i: number }[] = [];
+  let yy = 0, idx = 0;
+  for (const row of rows) {
+    const h = (row.sum / total) * H; let xx = 0;
+    for (const it of row.items) { const w = (it.v / row.sum) * W; rects.push({ ...it, x: xx, y: yy, w, h, i: idx++ }); xx += w; }
+    yy += h;
+  }
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 220 }}>
+        {rects.map(r => (
+          <g key={r.nombre}>
+            <rect x={r.x + 0.3} y={r.y + 0.3} width={Math.max(0, r.w - 0.6)} height={Math.max(0, r.h - 0.6)} rx={0.8} fill={PALETA[r.i % PALETA.length]} opacity={0.85} />
+            {r.w > 14 && r.h > 8 && (
+              <text x={r.x + 1.5} y={r.y + 4} fill="#06121f" style={{ fontSize: 2.6, fontWeight: 700 }}>
+                {r.nombre.length > Math.floor(r.w / 2.2) ? r.nombre.slice(0, Math.floor(r.w / 2.2)) : r.nombre}
+                <tspan x={r.x + 1.5} y={r.y + 7.5} style={{ fontSize: 2.2 }}>{Math.round((r.v / total) * 100)}%</tspan>
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+      <div className="muted" style={{ fontSize: 10 }}>Tamaño ∝ venta · {labelMes(mes)}</div>
+    </div>
+  );
+}
+
+function CompararMesesView() {
+  const { data: disp } = useQuery({ queryKey: ['meses-disponibles'], queryFn: () => reportesApi.mesesDisponibles() });
+  const [sel, setSel] = useState<string[]>([]);
+  const [dim, setDim] = useState<'marca' | 'categoria' | 'regional' | 'vendedor'>('marca');
+
+  // Inicializa con los 3 meses más recientes disponibles.
+  if (disp && disp.length && !sel.length) setSel(disp.slice(0, 3).reverse());
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['comparar-meses', sel.join(',')],
+    queryFn: () => reportesApi.compararMeses(sel),
+    enabled: sel.length > 0, refetchInterval: 120_000,
+  });
+
+  const toggle = (m: string) => setSel(s => s.includes(m) ? s.filter(x => x !== m) : (s.length >= 6 ? s : [...s, m].sort()));
+  const mesTree = sel.length ? sel[sel.length - 1] : '';
+  const dims = data?.dimensiones[dim] ?? [];
+
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      {/* Selector de meses */}
+      <div className="card" style={{ display: 'grid', gap: 8 }}>
+        <strong style={{ fontSize: 13 }}>📐 Elige los meses a comparar (hasta 6){isFetching ? ' · cargando…' : ''}</strong>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {!disp?.length && <span className="muted" style={{ fontSize: 12 }}>Sin meses con ventas.</span>}
+          {disp?.map(m => (
+            <button key={m} className={`btn ${sel.includes(m) ? '' : 'btn-ghost'}`} style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => toggle(m)}>{labelMes(m)}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabla comparativa de KPIs por mes */}
+      <div className="card" style={{ overflowX: 'auto' }}>
+        <strong style={{ fontSize: 13 }}>Indicadores por mes</strong>
+        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', minWidth: 420, marginTop: 8 }}>
+          <thead>
+            <tr className="muted" style={{ textAlign: 'right' }}>
+              <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 6px' }}>Mes</th>
+              <th style={{ fontWeight: 600, padding: '4px 6px' }}>Venta</th>
+              <th style={{ fontWeight: 600, padding: '4px 6px' }}>Unidades</th>
+              <th style={{ fontWeight: 600, padding: '4px 6px' }}>Pedidos</th>
+              <th style={{ fontWeight: 600, padding: '4px 6px' }}>Impactos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.kpis.map((m, i) => (
+              <tr key={m.mes} style={{ textAlign: 'right', borderTop: '1px solid var(--border)' }}>
+                <td style={{ textAlign: 'left', padding: '5px 6px' }}><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: PALETA[i % PALETA.length], marginRight: 6 }} />{m.label}</td>
+                <td className="mono green" style={{ padding: '5px 6px' }}>{fmtMoneda(m.venta)}</td>
+                <td className="mono" style={{ padding: '5px 6px' }}>{m.unidades.toLocaleString('es-CO')}</td>
+                <td className="mono" style={{ padding: '5px 6px' }}>{m.pedidos}</td>
+                <td className="mono" style={{ padding: '5px 6px' }}>{m.clientes}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Líneas múltiples + treemap */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px,1fr))', gap: 12 }}>
+        <div className="card">
+          <strong style={{ fontSize: 13 }}>📈 Venta diaria · líneas por mes</strong>
+          <div style={{ marginTop: 10 }}><LineasMeses series={data?.series ?? {}} meses={sel} /></div>
+        </div>
+        <div className="card">
+          <strong style={{ fontSize: 13 }}>🗺 Treemap de participación</strong>
+          {mesTree && <Treemap items={dims} mes={mesTree} />}
+        </div>
+      </div>
+
+      {/* Barras agrupadas por dimensión */}
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: 13 }}>Comparativo por dimensión (barra por mes)</strong>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {([['marca', 'Marca'], ['categoria', 'Categoría'], ['regional', 'Regional'], ['vendedor', 'Vendedor']] as const).map(([id, lab]) => (
+              <button key={id} className={`btn ${dim === id ? '' : 'btn-ghost'}`} style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => setDim(id)}>{lab}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ marginTop: 10 }}><BarrasAgrupadas items={dims} meses={sel} /></div>
+      </div>
+
+      <p className="muted" style={{ fontSize: 11, textAlign: 'center' }}>Compara hasta 6 meses (consecutivos o sueltos). Datos en vivo del sistema.</p>
     </div>
   );
 }

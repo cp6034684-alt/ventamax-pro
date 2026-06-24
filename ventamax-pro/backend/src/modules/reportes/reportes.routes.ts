@@ -1022,6 +1022,101 @@ reportesRouter.get('/cartera-detalle', requiereRol('ADMIN', 'COADMIN', 'SUPERVIS
   } catch (e) { next(e); }
 });
 
+// Alcance por rol reutilizable para los endpoints del dashboard.
+async function scopeVendedores(req: any): Promise<string[] | null> {
+  if (req.usuario.rol !== 'SUPERVISOR') return null;
+  const equipo = await db.usuario.findMany({
+    where: ({ OR: [{ supervisorId: req.usuario.id }, { id: req.usuario.id }] } as any),
+    select: { id: true },
+  });
+  const ids = equipo.map((u: any) => u.id);
+  return ids.length ? ids : [req.usuario.id];
+}
+
+// GET /api/reportes/meses-disponibles — meses con ventas (para el selector multi-mes).
+reportesRouter.get('/meses-disponibles', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const scope = await scopeVendedores(req);
+    const fScope = scope ? Prisma.sql`AND f."vendedorId" IN (${Prisma.join(scope)})` : Prisma.empty;
+    const rows = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT to_char(f."creadoEn",'YYYY-MM') AS mes
+      FROM facturas f
+      WHERE f.estado <> 'ANULADA' AND f."tipoDoc"='VENTA' ${fScope}
+      GROUP BY 1 ORDER BY 1 DESC LIMIT 36`);
+    res.json(rows.map(r => r.mes).filter(Boolean));
+  } catch (e) { next(e); }
+});
+
+// GET /api/reportes/comparar-meses?meses=YYYY-MM,YYYY-MM — comparación de meses arbitrarios.
+reportesRouter.get('/comparar-meses', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    let meses = String(req.query.meses ?? '').split(',').map(s => s.trim()).filter(s => /^\d{4}-\d{2}$/.test(s)).slice(0, 6);
+    if (!meses.length) { // por defecto, últimos 3 meses
+      const d = new Date();
+      for (let i = 2; i >= 0; i--) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); meses.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`); }
+    }
+    const scope = await scopeVendedores(req);
+    const fScope = scope ? Prisma.sql`AND f."vendedorId" IN (${Prisma.join(scope)})` : Prisma.empty;
+    const inMeses = Prisma.sql`to_char(f."creadoEn",'YYYY-MM') IN (${Prisma.join(meses)})`;
+    const baseI = Prisma.sql`f.estado <> 'ANULADA' AND f."tipoDoc"='VENTA' AND ${inMeses} ${fScope}`;
+
+    const [kpiItems, kpiFact, serie, dMarca, dCategoria, dRegional, dVendedor] = await Promise.all([
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT to_char(f."creadoEn",'YYYY-MM') AS mes, COALESCE(SUM(i.total),0)::float AS venta, COALESCE(SUM(i.cantidad),0)::int AS unidades
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId"
+        WHERE ${baseI} GROUP BY 1`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT to_char(f."creadoEn",'YYYY-MM') AS mes, COUNT(DISTINCT f.id)::int AS pedidos, COUNT(DISTINCT f."clienteId")::int AS clientes
+        FROM facturas f WHERE ${baseI} GROUP BY 1`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT to_char(f."creadoEn",'YYYY-MM') AS mes, EXTRACT(DAY FROM f."creadoEn")::int AS dia, COALESCE(SUM(i.total),0)::float AS venta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId"
+        WHERE ${baseI} GROUP BY 1,2 ORDER BY 2`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM(p.marca),''),'Sin marca') AS nombre, to_char(f."creadoEn",'YYYY-MM') AS mes, COALESCE(SUM(i.total),0)::float AS venta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId" WHERE ${baseI} GROUP BY 1,2`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM(p.categoria),''),'Sin categoría') AS nombre, to_char(f."creadoEn",'YYYY-MM') AS mes, COALESCE(SUM(i.total),0)::float AS venta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN productos p ON p.id=i."productoId" WHERE ${baseI} GROUP BY 1,2`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(r.nombre,'Sin región') AS nombre, to_char(f."creadoEn",'YYYY-MM') AS mes, COALESCE(SUM(i.total),0)::float AS venta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN usuarios u ON u.id=f."vendedorId" LEFT JOIN regiones r ON r.id=u."regionId" WHERE ${baseI} GROUP BY 1,2`),
+      db.$queryRaw<any[]>(Prisma.sql`
+        SELECT u.nombre AS nombre, to_char(f."creadoEn",'YYYY-MM') AS mes, COALESCE(SUM(i.total),0)::float AS venta
+        FROM factura_items i JOIN facturas f ON f.id=i."facturaId" JOIN usuarios u ON u.id=f."vendedorId" WHERE ${baseI} GROUP BY 1,2`),
+    ]);
+
+    const MES_CORTO2 = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const label = (m: string) => { const [y, mm] = m.split('-'); return `${MES_CORTO2[Number(mm) - 1]} ${y.slice(2)}`; };
+    const kI = new Map(kpiItems.map(r => [r.mes, r])); const kF = new Map(kpiFact.map(r => [r.mes, r]));
+    const kpis = meses.map(m => ({
+      mes: m, label: label(m),
+      venta: Number(kI.get(m)?.venta || 0), unidades: Number(kI.get(m)?.unidades || 0),
+      pedidos: Number(kF.get(m)?.pedidos || 0), clientes: Number(kF.get(m)?.clientes || 0),
+    }));
+
+    // series diarias por mes (para líneas múltiples)
+    const series: Record<string, { dia: number; venta: number }[]> = {};
+    for (const m of meses) series[m] = [];
+    for (const r of serie) series[r.mes]?.push({ dia: Number(r.dia), venta: Number(r.venta) });
+
+    // pivot de dimensiones: [{nombre, total, valores:{mes:venta}}]
+    const pivot = (rows: any[], top = 12) => {
+      const map = new Map<string, { nombre: string; total: number; valores: Record<string, number> }>();
+      for (const r of rows) {
+        if (!map.has(r.nombre)) map.set(r.nombre, { nombre: r.nombre, total: 0, valores: {} });
+        const o = map.get(r.nombre)!; o.valores[r.mes] = Number(r.venta); o.total += Number(r.venta);
+      }
+      return [...map.values()].sort((a, b) => b.total - a.total).slice(0, top);
+    };
+
+    res.json({
+      meses, labels: meses.map(label), kpis, series,
+      dimensiones: { marca: pivot(dMarca), categoria: pivot(dCategoria), regional: pivot(dRegional, 20), vendedor: pivot(dVendedor, 20) },
+    });
+  } catch (e) { next(e); }
+});
+
 // GET /api/reportes/exportar-facturas?desde=&hasta= — filas planas para Excel (máx 10.000)
 reportesRouter.get('/exportar-facturas', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
   try {
