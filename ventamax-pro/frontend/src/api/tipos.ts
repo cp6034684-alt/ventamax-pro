@@ -23,6 +23,13 @@ export interface ClienteDetalle extends Cliente {
 
 export interface BarrioFaceta { barrio: string; total: number; }
 
+export interface CarteraFacturaDet extends Factura { saldo: number; diasMora: number; }
+export interface CarteraCliente {
+  id: string; nombre: string; nit?: string; barrio?: string; telefono?: string; direccion?: string; ciudad?: string;
+  vendedor?: string; saldo: number; diasMoraMax: number; facturas: CarteraFacturaDet[];
+}
+export interface CarteraDetalle { total: number; clientes: CarteraCliente[]; totalClientes: number; totalFacturas: number; }
+
 export interface CompDim { nombre: string; ventaAct: number; ventaAnt: number; }
 export interface CompVend { nombre: string; zona?: string | null; ventaAct: number; ventaAnt: number; undAct: number; undAnt: number; pedAct: number; pedAnt: number; cliAct: number; cliAnt: number; }
 export interface ComparativoMes {

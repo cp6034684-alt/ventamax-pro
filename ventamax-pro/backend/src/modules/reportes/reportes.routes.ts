@@ -743,7 +743,8 @@ reportesRouter.get('/ejecutivo', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), 
 
     // Fechas auxiliares
     const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
-    const hace6 = new Date(); hace6.setMonth(hace6.getMonth() - 5, 1); hace6.setHours(0, 0, 0, 0);
+    const nMeses = Math.min(Math.max(Number(req.query.meses) || 6, 1), 24);
+    const hace6 = new Date(); hace6.setMonth(hace6.getMonth() - (nMeses - 1), 1); hace6.setHours(0, 0, 0, 0);
     const ahora = new Date();
     const diaActual = ahora.getDate();
     const diasMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
@@ -964,6 +965,60 @@ reportesRouter.get('/comparativo', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR')
       })),
       categoria: mapDim(categoria), regional: mapDim(regional), marca: mapDim(marca),
     });
+  } catch (e) { next(e); }
+});
+
+// GET /api/reportes/cartera-detalle — cartera por cliente con facturas fiadas, items y días de mora.
+reportesRouter.get('/cartera-detalle', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    let scopeIds: string[] | null = null;
+    if (req.usuario!.rol === 'SUPERVISOR') {
+      const equipo = await db.usuario.findMany({
+        where: ({ OR: [{ supervisorId: req.usuario!.id }, { id: req.usuario!.id }] } as any),
+        select: { id: true },
+      });
+      scopeIds = equipo.map((u: any) => u.id);
+      if (!scopeIds.length) scopeIds = [req.usuario!.id];
+    }
+    const where: any = { metodoPago: 'CREDITO', estado: { not: 'ANULADA' } };
+    if (scopeIds) where.vendedorId = { in: scopeIds };
+
+    const facturas = await db.factura.findMany({
+      where, orderBy: { creadoEn: 'asc' }, take: 6000,
+      include: ({
+        cliente: { select: { id: true, nombre: true, nit: true, direccion: true, barrio: true, ciudad: true, zona: true, telefono: true } },
+        vendedor: { select: { nombre: true, telefono: true, zona: true } },
+        items: { include: { producto: { select: { nombre: true, categoria: true, iva: true } } } },
+      } as any),
+    });
+
+    const hoy = new Date();
+    const dias = (d: Date) => Math.max(0, Math.floor((hoy.getTime() - new Date(d).getTime()) / 86400000));
+    const porCliente = new Map<string, any>();
+    let total = 0;
+
+    for (const f of facturas as any[]) {
+      const saldo = Number(f.total) - Number(f.pagado);
+      if (saldo <= 0) continue;
+      total += saldo;
+      const cid = f.cliente?.id ?? f.clienteId;
+      if (!porCliente.has(cid)) {
+        porCliente.set(cid, {
+          id: cid, nombre: f.cliente?.nombre ?? '—', nit: f.cliente?.nit ?? '',
+          barrio: f.cliente?.barrio ?? '', telefono: f.cliente?.telefono ?? '',
+          direccion: f.cliente?.direccion ?? '', ciudad: f.cliente?.ciudad ?? '',
+          vendedor: f.vendedor?.nombre ?? '', saldo: 0, diasMoraMax: 0, facturas: [],
+        });
+      }
+      const c = porCliente.get(cid);
+      const dm = dias(f.creadoEn);
+      c.saldo += saldo;
+      c.diasMoraMax = Math.max(c.diasMoraMax, dm);
+      c.facturas.push({ ...f, saldo, diasMora: dm });
+    }
+
+    const clientes = [...porCliente.values()].sort((a, b) => b.saldo - a.saldo);
+    res.json({ total, clientes, totalClientes: clientes.length, totalFacturas: facturas.length });
   } catch (e) { next(e); }
 });
 

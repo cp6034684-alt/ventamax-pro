@@ -4,7 +4,7 @@ import type {
   Proveedor, MovimientoStock, ResumenReporte, VentaDia, Cartera,
   Periodo, RankingAsesores, PanelAdmin, Presente, BarrioFaceta, ClienteDetalle, ClienteMapa,
   VendedorRastreo, PosicionViva, Recorrido, RecorridoVendedor, Indicadores, Region, Bodega, GrupoDuplicado,
-  DashboardHistorico, Rentabilidad, Tarea, DashboardEjecutivo, ComparativoMes,
+  DashboardHistorico, Rentabilidad, Tarea, DashboardEjecutivo, ComparativoMes, CarteraDetalle,
 } from './tipos';
 
 export const authApi = {
@@ -143,11 +143,13 @@ export const reportesApi = {
     return api<Indicadores>(`/reportes/indicadores?${q.toString()}`);
   },
   comparativo: () => api<ComparativoMes>('/reportes/comparativo'),
-  ejecutivo: (p: { periodo?: string; desde?: string; hasta?: string }) => {
+  carteraDetalle: () => api<CarteraDetalle>('/reportes/cartera-detalle'),
+  ejecutivo: (p: { periodo?: string; desde?: string; hasta?: string; meses?: number }) => {
     const q = new URLSearchParams();
     if (p.periodo) q.set('periodo', p.periodo);
     if (p.desde) q.set('desde', p.desde);
     if (p.hasta) q.set('hasta', p.hasta);
+    if (p.meses) q.set('meses', String(p.meses));
     return api<DashboardEjecutivo>(`/reportes/ejecutivo?${q.toString()}`);
   },
   actividad: (p: { usuarioId?: string; tipo?: string; limit?: number }) => {

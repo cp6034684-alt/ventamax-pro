@@ -28,8 +28,6 @@ const COLS_DETALLE: [string, string][] = [
 
 interface Tab { id: string; label: string; }
 const TABS_GESTION: Tab[] = [
-  { id: 'ventas', label: '📈 Ventas' },
-  { id: 'cartera', label: '⚠️ Cartera' },
   { id: 'entregas', label: '🚚 Entregas' },
   { id: 'excel', label: '📊 Excel' },
   { id: 'actividad', label: '📍 Actividad' },
@@ -82,7 +80,7 @@ export function ReportesPage() {
   const { usuario } = useAuth();
   const esGestion = usuario?.rol === 'ADMIN' || usuario?.rol === 'COADMIN' || usuario?.rol === 'SUPERVISOR';
   const tabs = esGestion ? TABS_GESTION : TABS_VEND;
-  const [tab, setTab] = useState('ventas');
+  const [tab, setTab] = useState(esGestion ? 'entregas' : 'ventas');
   const [desde, setDesde] = useState(inicioMesISO());
   const [hasta, setHasta] = useState(hoyISO());
   const [exportando, setExportando] = useState(false);
@@ -161,49 +159,6 @@ export function ReportesPage() {
         </div>
       )}
 
-      {tab === 'ventas' && esGestion && (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-            <Card titulo="VENTAS" valor={fmtMoneda(totalVentas)} sub={`${resumen?.ventas._count ?? 0} facturas`} color="var(--green)" />
-            <Card titulo="COSTO" valor={fmtMoneda(renta?.totales.costo ?? 0)} color="var(--red)" />
-            <Card titulo="GANANCIA" valor={fmtMoneda(renta?.totales.ganancia ?? 0)} sub={`margen ${pct(renta?.totales.margen ?? 0)}`} color="var(--accent)" />
-            <Card titulo="CARTERA (deben)" valor={fmtMoneda(cartera?.total ?? 0)} sub={`${cartera?.clientes.length ?? 0} clientes`} color="var(--orange)" />
-          </div>
-          {!!semana?.length && (
-            <div className="card">
-              <strong style={{ fontSize: 13 }}>Últimos 7 días</strong>
-              <div style={{ display: 'flex', alignItems: 'end', gap: 6, height: 110, marginTop: 12 }}>
-                {semana.map(d => (
-                  <div key={d.dia} style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ height: Math.max(4, (d.total / maxSemana) * 80), background: 'linear-gradient(180deg, var(--accent), #0044ff)', borderRadius: 4 }} title={fmtMoneda(d.total)} />
-                    <div className="muted" style={{ fontSize: 9, marginTop: 4 }}>{new Date(d.dia).toLocaleDateString('es-CO', { weekday: 'short' })}</div>
-                    <div className="mono" style={{ fontSize: 9 }}>{d.ventas}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="card">
-            <strong style={{ fontSize: 13 }}>Ranking de vendedores</strong>
-            {resumen?.porVendedor.map((v, i) => {
-              const part = totalVend > 0 ? Number(v._sum.total) / totalVend : 0;
-              return (
-              <div key={v.vendedorId} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13, alignItems: 'center' }}>
-                <span className="mono muted" style={{ width: 22 }}>{i + 1}</span>
-                <span style={{ flex: 1 }}>{v.nombre}</span>
-                <span className="muted" style={{ fontSize: 11 }}>{v._count} ventas · {pct(part)}</span>
-                <span className="mono green">{fmtMoneda(v._sum.total)}</span>
-              </div>
-            ); })}
-            {resumen && !resumen.porVendedor.length && <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>Sin ventas en el rango.</p>}
-          </div>
-          <strong style={{ fontSize: 13 }}>Por producto</strong>
-          <ListaRenta items={renta?.porProducto ?? []} totalVenta={renta?.totales.venta ?? 0} />
-          <strong style={{ fontSize: 13 }}>Por categoría</strong>
-          <ListaRenta items={renta?.porCategoria ?? []} totalVenta={renta?.totales.venta ?? 0} />
-        </>
-      )}
-
       {((tab === 'ventas' && !esGestion) || tab === 'kpos') && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
@@ -237,21 +192,6 @@ export function ReportesPage() {
           <ListaRenta items={renta?.porProducto ?? []} />
           <strong style={{ fontSize: 13 }}>Por categoría</strong>
           <ListaRenta items={renta?.porCategoria ?? []} />
-        </>
-      )}
-
-      {tab === 'cartera' && (
-        <>
-          <Card titulo="CARTERA TOTAL (deben)" valor={fmtMoneda(cartera?.total ?? 0)} sub={`${cartera?.clientes.length ?? 0} clientes`} color="var(--orange)" />
-          <div className="card">
-            {!cartera?.clientes.length && <p className="muted" style={{ fontSize: 13 }}>Sin cartera pendiente.</p>}
-            {cartera?.clientes.map(c => (
-              <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                <span>{c.nombre} <span className="muted" style={{ fontSize: 11 }}>{c.barrio ?? ''} {c.telefono ?? ''}</span></span>
-                <span className="mono" style={{ color: 'var(--orange)' }}>{fmtMoneda(c.saldoPendiente)}</span>
-              </div>
-            ))}
-          </div>
         </>
       )}
 
