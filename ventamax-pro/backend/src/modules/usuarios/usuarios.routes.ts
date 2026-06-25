@@ -140,9 +140,17 @@ usuariosRouter.patch('/:id', async (req, res, next) => {
       data.zona = m ? `${m[1]}-${m[2]}-${c3}` : await siguienteTicket(actual?.ciudad ?? req.body.ciudad ?? '', req.body.canal);
       data.listasPrecios = c3 === 'FOC' ? ['DROGUERIAS'] : ['GENERAL', 'MAYORISTA', 'TAT', 'DROGUERIAS'];
     }
-    res.json(await db.usuario.update({
-      where: { id: req.params.id }, data,
-      select: { id: true, nombre: true, rol: true, activo: true },
-    }));
+    try {
+      res.json(await db.usuario.update({
+        where: { id: req.params.id }, data,
+        select: { id: true, nombre: true, rol: true, activo: true },
+      }));
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        const campo = (e.meta?.target ?? []).includes('usuario') ? 'usuario de acceso (login)' : 'dato único';
+        return res.status(400).json({ error: `Ya existe otro usuario con ese ${campo}.` });
+      }
+      throw e;
+    }
   } catch (e) { next(e); }
 });

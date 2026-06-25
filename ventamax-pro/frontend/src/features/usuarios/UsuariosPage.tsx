@@ -21,6 +21,7 @@ const CANALES = ['MIXTO', 'FOCALIZADO', 'MAYORISTA', 'VIAJERO'];
 export function UsuariosPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [errEdit, setErrEdit] = useState<string | null>(null);
   const { usuario } = useAuth();
   const puedeCrearAdmins = usuario?.rol === 'ADMIN' || usuario?.rol === 'COADMIN';
   const qc = useQueryClient();
@@ -166,7 +167,7 @@ export function UsuariosPage() {
 
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}
-                onClick={() => setEditId(editId === u.id ? null : u.id)}>✏️ Editar</button>
+                onClick={() => { setErrEdit(null); setEditId(editId === u.id ? null : u.id); }}>✏️ Editar</button>
               <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}
                 onClick={() => {
                   const v = prompt(`Meta mensual de ${u.nombre}:`, String(u.meta ?? 10000000));
@@ -193,6 +194,7 @@ export function UsuariosPage() {
                 onSubmit={e => {
                   e.preventDefault();
                   const fd = new FormData(e.currentTarget);
+                  setErrEdit(null);
                   actualizar.mutate({
                     id: u.id,
                     nombre: String(fd.get('nombre') || '').trim() || undefined,
@@ -207,8 +209,10 @@ export function UsuariosPage() {
                     meta: fd.get('meta') ? Number(String(fd.get('meta')).replace(/[^\d]/g, '')) : undefined,
                     regionId: String(fd.get('regionId') || '') || null,
                     supervisorId: esVend ? (String(fd.get('supervisorId') || '') || null) : undefined,
+                  }, {
+                    onSuccess: () => setEditId(null),
+                    onError: (err: any) => setErrEdit(err?.message || 'No se pudo guardar'),
                   });
-                  setEditId(null);
                 }}>
                 <input name="nombre" defaultValue={u.nombre} placeholder="Nombre completo" />
                 <input name="usuario" defaultValue={u.usuario} placeholder="Usuario de acceso (login)" autoCapitalize="none" />
@@ -256,6 +260,7 @@ export function UsuariosPage() {
                   <option value="">Sin region asignada</option>
                   {regiones?.map(r => <option key={r.id} value={r.id}>Region: {r.nombre}</option>)}
                 </select>
+                {errEdit && <div className="error-box">{errEdit}</div>}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn" type="submit" style={{ flex: 1 }}>Guardar cambios</button>
                   <button className="btn btn-ghost" type="button" onClick={() => setEditId(null)}>Cancelar</button>
