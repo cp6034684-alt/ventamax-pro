@@ -3,6 +3,22 @@ import { db } from '../../config/db';
 import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { online, metros, ROLES_CAMPO } from '../presencia/presencia.store';
 
+
+// Límites del día en hora de Colombia (UTC-5, sin horario de verano), para que
+// "hoy" no incluya el recorrido de ayer ni se corte la operación de la tarde.
+function diaColombia(fecha?: string) {
+  let y: number, mo: number, d: number;
+  if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    const [a, b, c] = fecha.split('-').map(Number); y = a; mo = b; d = c;
+  } else {
+    const co = new Date(Date.now() - 5 * 3600 * 1000);
+    y = co.getUTCFullYear(); mo = co.getUTCMonth() + 1; d = co.getUTCDate();
+  }
+  const inicio = new Date(Date.UTC(y, mo - 1, d, 5, 0, 0, 0)); // 00:00 Colombia = 05:00 UTC
+  const fin = new Date(inicio.getTime() + 24 * 3600 * 1000);
+  return { inicio, fin };
+}
+
 export const rastreoRouter = Router();
 // Rastreo solo para perfiles administrativos.
 rastreoRouter.use(requiereAuth, requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'));
@@ -42,9 +58,7 @@ rastreoRouter.get('/recorrido', async (req, res, next) => {
     const vendedorId = String(req.query.vendedorId || '');
     if (!vendedorId) return res.status(400).json({ error: 'vendedorId requerido' });
 
-    const base = req.query.fecha ? new Date(String(req.query.fecha)) : new Date();
-    const inicio = new Date(base); inicio.setHours(0, 0, 0, 0);
-    const fin = new Date(inicio); fin.setDate(fin.getDate() + 1);
+    const { inicio, fin } = diaColombia(req.query.fecha ? String(req.query.fecha) : undefined);
 
     const puntos = await db.ubicacion.findMany({
       where: { vendedorId, creadoEn: { gte: inicio, lt: fin } },
@@ -110,9 +124,7 @@ rastreoRouter.get('/recorrido', async (req, res, next) => {
 // GET /api/rastreo/recorridos?fecha=YYYY-MM-DD — recorrido del día de TODOS los vendedores (para verlos juntos)
 rastreoRouter.get('/recorridos', async (req, res, next) => {
   try {
-    const base = req.query.fecha ? new Date(String(req.query.fecha)) : new Date();
-    const inicio = new Date(base); inicio.setHours(0, 0, 0, 0);
-    const fin = new Date(inicio); fin.setDate(fin.getDate() + 1);
+    const { inicio, fin } = diaColombia(req.query.fecha ? String(req.query.fecha) : undefined);
 
     const vendedores = await db.usuario.findMany({
       where: { rol: { in: ROLES_CAMPO as any }, activo: true },

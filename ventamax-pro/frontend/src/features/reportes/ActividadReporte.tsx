@@ -89,7 +89,10 @@ function LogActividad() {
                   </div>
                   <div className="muted" style={{ fontSize: 11 }}>{e.nombre}{e.alcance ? ` · ${e.alcance}` : ''}</div>
                 </div>
-                <span className="mono muted" style={{ fontSize: 11, flexShrink: 0 }}>{hhmm(e.creadoEn)}</span>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div className="mono muted" style={{ fontSize: 11 }}>{hhmm(e.creadoEn)}</div>
+                  <div className="mono" style={{ fontSize: 9, opacity: .55 }}>#{e.consecutivo}</div>
+                </div>
               </div>
             );
           })}

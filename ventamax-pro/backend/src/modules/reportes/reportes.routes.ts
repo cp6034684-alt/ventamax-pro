@@ -312,10 +312,10 @@ reportesRouter.get('/actividad', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), 
       where,
       orderBy: { creadoEn: 'desc' },
       take: limit,
-      select: { id: true, tipo: true, detalle: true, creadoEn: true, usuario: { select: { nombre: true, zona: true, rol: true } } },
+      select: { id: true, consecutivo: true, tipo: true, detalle: true, creadoEn: true, usuario: { select: { nombre: true, zona: true, rol: true } } },
     });
     res.json(eventos.map((e: any) => ({
-      id: e.id, tipo: e.tipo, detalle: e.detalle, creadoEn: e.creadoEn,
+      id: e.id, consecutivo: e.consecutivo, tipo: e.tipo, detalle: e.detalle, creadoEn: e.creadoEn,
       nombre: e.usuario?.nombre ?? '—',
       alcance: e.usuario?.zona || (e.usuario?.rol && ['ADMIN', 'COADMIN'].includes(e.usuario.rol) ? 'Todas' : ''),
     })));

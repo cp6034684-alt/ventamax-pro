@@ -372,6 +372,7 @@ model CargaInventarioItem {
 
 model Actividad {
   id        String   @id @default(uuid())
+  consecutivo Int    @unique @default(autoincrement()) // número de auditoría
   usuarioId String?
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
   tipo      String   // LOGIN | LOGOUT | VENTA | IMPORTACION
