@@ -22,6 +22,9 @@ export function UsuariosPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [errEdit, setErrEdit] = useState<string | null>(null);
+  const [reempId, setReempId] = useState<string | null>(null);
+  const [reempInfo, setReempInfo] = useState<string | null>(null);
+  const [reempErr, setReempErr] = useState<string | null>(null);
   const { usuario } = useAuth();
   const puedeCrearAdmins = usuario?.rol === 'ADMIN' || usuario?.rol === 'COADMIN';
   const qc = useQueryClient();
@@ -48,6 +51,9 @@ export function UsuariosPage() {
   const crear = useMutation({ mutationFn: usuariosApi.crear, onSuccess: invalidar });
   const actualizar = useMutation({
     mutationFn: ({ id, ...d }: any) => usuariosApi.actualizar(id, d), onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
+  });
+  const reemplazar = useMutation({
+    mutationFn: ({ id, ...d }: any) => usuariosApi.reemplazar(id, d), onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
   });
 
   return (
@@ -168,6 +174,10 @@ export function UsuariosPage() {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}
                 onClick={() => { setErrEdit(null); setEditId(editId === u.id ? null : u.id); }}>✏️ Editar</button>
+              {(esVend || u.rol === 'ENTREGADOR') && (
+                <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}
+                  onClick={() => { setReempInfo(null); setReempErr(null); setReempId(reempId === u.id ? null : u.id); }}>♻️ Reemplazar</button>
+              )}
               <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}
                 onClick={() => {
                   const v = prompt(`Meta mensual de ${u.nombre}:`, String(u.meta ?? 10000000));

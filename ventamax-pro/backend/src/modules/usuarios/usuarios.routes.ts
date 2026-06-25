@@ -60,6 +60,33 @@ usuariosRouter.get('/siguiente-ticket', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// PATCH /api/usuarios/:id/reemplazar — la misma ruta/ticket, persona nueva.
+// Cambia nombre, documento y teléfono, y SINCRONIZA el acceso: usuario = documento
+// y PIN = últimos 4 del documento. Conserva ticket, región, canal, listas y rol.
+usuariosRouter.patch('/:id/reemplazar', async (req, res, next) => {
+  try {
+    const nombre = String(req.body?.nombre ?? '').trim();
+    const doc = String(req.body?.documento ?? '').replace(/\D/g, '');
+    if (!nombre || !doc) return res.status(400).json({ error: 'Nombre y documento son obligatorios' });
+    const pin = doc.slice(-4).padStart(4, '0');
+    try {
+      const u = await db.usuario.update({
+        where: { id: req.params.id },
+        data: ({
+          nombre, documento: doc, usuario: doc,
+          telefono: req.body?.telefono ? String(req.body.telefono) : null,
+          pinHash: await bcrypt.hash(pin, 10),
+        } as any),
+        select: { id: true, nombre: true, usuario: true, zona: true } as any,
+      });
+      res.json({ ...u, pin });
+    } catch (e: any) {
+      if (e?.code === 'P2002') return res.status(400).json({ error: 'Ya existe otro usuario con ese documento (login). Desactívalo o usa otro documento.' });
+      throw e;
+    }
+  } catch (e) { next(e); }
+});
+
 usuariosRouter.get('/', async (_req, res, next) => {
   try {
     res.json(await db.usuario.findMany({

@@ -112,6 +112,8 @@ export const importarApi = {
 
 export const usuariosApi = {
   listar: () => api<Usuario[]>('/usuarios'),
+  reemplazar: (id: string, d: { nombre: string; documento: string; telefono?: string }) =>
+    api<{ id: string; nombre: string; usuario: string; zona?: string | null; pin: string }>(`/usuarios/${id}/reemplazar`, { method: 'PATCH', body: JSON.stringify(d) }),
   siguienteTicket: (ciudad: string, canal: string) => api<{ ticket: string }>(`/usuarios/siguiente-ticket?ciudad=${encodeURIComponent(ciudad)}&canal=${encodeURIComponent(canal)}`),
   crear: (d: { nombre: string; usuario: string; pin: string; rol: string; zona?: string; documento?: string; ciudad?: string; telefono?: string; canal?: string; meta?: number; listasPrecios?: string[]; regionId?: string | null; supervisorId?: string | null }) =>
     api<Usuario>('/usuarios', { method: 'POST', body: JSON.stringify(d) }),
