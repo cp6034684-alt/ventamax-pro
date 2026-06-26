@@ -48,8 +48,8 @@ export function MapaRastreo({ vivos, recorrido, operaciones, rutas, alto = 460 }
 
     // Pin redondo con el número de orden del punto.
     const iconoNum = (n: number, color: string) => L.divIcon({
-      className: '', iconSize: [16, 16], iconAnchor: [8, 8],
-      html: `<div style="background:${color};color:#06121f;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid #06121f;box-shadow:0 0 2px rgba(0,0,0,.6)">${n}</div>`,
+      className: '', iconSize: [30, 30], iconAnchor: [15, 15],
+      html: `<div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer"><div style="background:${color};color:#06121f;font-size:10px;font-weight:800;width:19px;height:19px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid #06121f;box-shadow:0 0 2px rgba(0,0,0,.6)">${n}</div></div>`,
     });
     // Marcador grande con emoji (inicio / fin).
     const iconoEmoji = (txt: string, bg: string) => L.divIcon({
@@ -67,7 +67,7 @@ export function MapaRastreo({ vivos, recorrido, operaciones, rutas, alto = 460 }
           const popup = `${cab}Punto #${idx + 1}<br>${hhmm(x.creadoEn)}`;
           const m = numerar
             ? L.marker([x.lat, x.lng], { icon: iconoNum(idx + 1, color) })
-            : L.circleMarker([x.lat, x.lng], { radius: 3, color, weight: 1, fillColor: color, fillOpacity: .7 });
+            : L.circleMarker([x.lat, x.lng], { radius: 7, color: '#fff', weight: 1.5, fillColor: color, fillOpacity: .9, bubblingMouseEvents: false });
           m.bindPopup(popup).addTo(cap);
         });
         todasCoords.push(...coords);
