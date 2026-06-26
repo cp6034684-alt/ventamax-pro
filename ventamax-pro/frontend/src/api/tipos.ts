@@ -57,6 +57,8 @@ export interface DashboardEjecutivo {
   alertas: { nombre: string; tipo: string; detalle: string; cumplimiento: number }[];
 }
 
+export interface Notificacion { id: string; tipo: string; titulo: string; detalle?: string | null; leida: boolean; creadoEn: string; }
+
 export interface Actividad { id: string; consecutivo: number; tipo: string; detalle?: string | null; creadoEn: string; nombre: string; alcance?: string; }
 
 export type EstadoMapa = 'pendiente' | 'vendido' | 'no_compra';

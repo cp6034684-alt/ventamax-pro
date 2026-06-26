@@ -7,6 +7,7 @@ import { leerPaginacion, respuestaPaginada } from '../../utils/pagination';
 import { clienteSchema, clienteUpdateSchema } from './clientes.schemas';
 import { maxCodigoCliente } from './codigo';
 import { registrarActividad } from '../../utils/actividad';
+import { notificarInicioRuta } from '../../utils/notificaciones';
 
 export const clientesRouter = Router();
 clientesRouter.use(requiereAuth);
@@ -157,6 +158,7 @@ clientesRouter.post('/:id/no-compra', async (req, res, next) => {
     await db.visita.create({
       data: { clienteId: req.params.id, vendedorId: req.usuario!.id, causal, notas: req.body?.notas || null },
     });
+    notificarInicioRuta(req.usuario!.id, req.params.id, 'no_compra');
     res.status(201).json({ ok: true });
   } catch (e) { next(e); }
 });

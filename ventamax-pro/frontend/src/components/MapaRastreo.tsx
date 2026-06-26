@@ -76,9 +76,13 @@ export function MapaRastreo({ vivos, recorrido, operaciones, rutas, alto = 460 }
           L.marker(coords[coords.length - 1], { icon: iconoEmoji('🏁', '#ffffff') }).bindTooltip(`${vend ? vend + ' · ' : ''}Fin · ${hhmm(p[p.length - 1].creadoEn)}`, { direction: 'top' }).addTo(cap);
         }
       }
+      // Operaciones (venta / no compra): marcadores grandes ENCIMA de todo y fáciles de tocar.
       (ops ?? []).filter(o => o.lat && o.lng).forEach(o => {
-        L.circleMarker([o.lat, o.lng], { radius: 7, color: '#fff', weight: 2, fillColor: o.tipo === 'venta' ? '#00e5a0' : '#ffaa00', fillOpacity: 1 })
-          .bindPopup(popOperacion(o, vend)).addTo(cap);
+        const icono = L.divIcon({
+          className: '', iconSize: [26, 26], iconAnchor: [13, 13],
+          html: `<div style="background:${o.tipo === 'venta' ? '#00e5a0' : '#ffaa00'};font-size:13px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,.7)">${o.tipo === 'venta' ? '🛒' : '🚫'}</div>`,
+        });
+        L.marker([o.lat, o.lng], { icon: icono, zIndexOffset: 1000 }).bindPopup(popOperacion(o, vend)).addTo(cap);
         todasCoords.push([o.lat, o.lng]);
       });
     };

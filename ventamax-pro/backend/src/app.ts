@@ -18,6 +18,7 @@ import { presenciaRouter } from './modules/presencia/presencia.routes';
 import { rastreoRouter } from './modules/rastreo/rastreo.routes';
 import { regionesRouter, bodegasRouter } from './modules/bodegas/bodegas.routes';
 import { tareasRouter } from './modules/tareas/tareas.routes';
+import { notificacionesRouter } from './modules/notificaciones/notificaciones.routes';
 
 export function crearApp() {
   const app = express();
@@ -60,6 +61,7 @@ export function crearApp() {
   app.use('/api/regiones', regionesRouter);
   app.use('/api/bodegas', bodegasRouter);
   app.use('/api/tareas', tareasRouter);
+  app.use('/api/notificaciones', notificacionesRouter);
   app.use((_req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
   app.use(manejadorErrores);
 

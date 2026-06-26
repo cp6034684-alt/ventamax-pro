@@ -4,7 +4,7 @@ import type {
   Proveedor, MovimientoStock, ResumenReporte, VentaDia, Cartera,
   Periodo, RankingAsesores, PanelAdmin, Presente, BarrioFaceta, ClienteDetalle, ClienteMapa,
   VendedorRastreo, PosicionViva, Recorrido, RecorridoVendedor, Indicadores, Region, Bodega, GrupoDuplicado,
-  DashboardHistorico, Rentabilidad, Tarea, DashboardEjecutivo, ComparativoMes, CarteraDetalle, CompararMeses,
+  DashboardHistorico, Rentabilidad, Tarea, DashboardEjecutivo, ComparativoMes, CarteraDetalle, CompararMeses, Notificacion,
 } from './tipos';
 
 export const authApi = {
@@ -201,4 +201,10 @@ export const rastreoApi = {
   recorrido: (vendedorId: string, fecha: string) =>
     api<Recorrido>(`/rastreo/recorrido?vendedorId=${vendedorId}&fecha=${fecha}`),
   recorridos: (fecha: string) => api<RecorridoVendedor[]>(`/rastreo/recorridos?fecha=${fecha}`),
+};
+
+export const notificacionesApi = {
+  listar: () => api<{ items: Notificacion[]; noLeidas: number }>('/notificaciones'),
+  marcarLeida: (id: string) => api<{ ok: boolean }>(`/notificaciones/${id}/leer`, { method: 'PATCH' }),
+  marcarTodas: () => api<{ ok: boolean }>('/notificaciones/leer-todas', { method: 'POST' }),
 };

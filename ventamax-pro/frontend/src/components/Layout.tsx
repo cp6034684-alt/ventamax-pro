@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { presenciaApi } from '../api/servicios';
 import type { Rol } from '../api/tipos';
 import { SyncBanner } from './SyncBanner';
+import { NotificacionesBell } from './NotificacionesBell';
 
 interface NavItem { ruta: string; icono: string; etiqueta: string; }
 
@@ -67,6 +68,7 @@ export function Layout() {
   const { usuario, cerrarSesion } = useAuth();
   const { pathname } = useLocation();
   const items = usuario ? NAV_POR_ROL[usuario.rol] : [];
+  const esGestion = usuario?.rol === 'ADMIN' || usuario?.rol === 'COADMIN' || usuario?.rol === 'SUPERVISOR';
 
   // Heartbeat de presencia: avisa al servidor que este usuario sigue
   // activo cada 20s mientras la sesión está abierta. Alimenta la barra
@@ -105,6 +107,7 @@ export function Layout() {
         }}>⚡</div>
         <strong style={{ flex: 1, fontSize: 15 }}>{TITULOS[pathname] ?? 'VentaMax Pro'}</strong>
         <span className="muted" style={{ fontSize: 12 }}>{usuario?.nombre.split(' ')[0]}</span>
+        {esGestion && <NotificacionesBell />}
         <NavLink to="/perfil" title="Mi perfil" style={{ textDecoration: 'none', fontSize: 18, lineHeight: 1 }}>⚙️</NavLink>
         <button onClick={cerrarSesion} title="Cerrar sesión" aria-label="Cerrar sesión"
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--red)', padding: 0 }}>⏻</button>

@@ -50,6 +50,7 @@ model Usuario {
   supervisor Usuario?  @relation("equipo", fields: [supervisorId], references: [id])
   acargo    Usuario[] @relation("equipo")
   actividades Actividad[]
+  notificaciones Notificacion[] @relation("notificaciones")
 
   @@index([rol, activo])
   @@map("usuarios")
@@ -382,4 +383,20 @@ model Actividad {
   @@index([creadoEn])
   @@index([usuarioId])
   @@map("actividades")
+}
+
+model Notificacion {
+  id        String   @id @default(uuid())
+  usuarioId String   // destinatario (supervisor)
+  tipo      String   // INICIO_RUTA
+  titulo    String
+  detalle   String?
+  leida     Boolean  @default(false)
+  creadoEn  DateTime @default(now())
+
+  usuario Usuario @relation("notificaciones", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, leida])
+  @@index([creadoEn])
+  @@map("notificaciones")
 }
