@@ -140,7 +140,7 @@ export function ReportesPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', display: 'grid', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2 }}>
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', paddingBottom: 2 }}>
         {tabs.map(t => (
           <button key={t.id} className={`btn ${tab === t.id ? '' : 'btn-ghost'}`}
             style={{ padding: '7px 12px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}

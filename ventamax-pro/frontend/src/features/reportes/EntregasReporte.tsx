@@ -38,7 +38,7 @@ export function EntregasReporte() {
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2 }}>
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', paddingBottom: 2 }}>
         {SUBTABS.map(t => (
           <button key={t.id} className={`btn ${sub === t.id ? '' : 'btn-ghost'}`}
             style={{ padding: '6px 10px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}
@@ -109,9 +109,9 @@ function statTarea(t: Tarea) {
 
 function StatCol({ n, label, color }: { n: number | string; label: string; color?: string }) {
   return (
-    <div style={{ textAlign: 'center', padding: '6px 2px' }}>
-      <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: color ?? 'var(--text)' }}>{n}</div>
-      <div className="muted" style={{ fontSize: 10 }}>{label}</div>
+    <div style={{ textAlign: 'center', padding: '6px 2px', minWidth: 0, overflow: 'hidden' }}>
+      <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: color ?? 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n}</div>
+      <div className="muted" style={{ fontSize: 9 }}>{label}</div>
     </div>
   );
 }

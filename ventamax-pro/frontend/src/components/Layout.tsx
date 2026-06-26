@@ -58,9 +58,9 @@ const TITULOS: Record<string, string> = {
 };
 
 const navStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties => ({
-  flex: 1, textAlign: 'center', padding: '9px 2px', textDecoration: 'none',
+  flex: 1, minWidth: 0, textAlign: 'center', padding: '8px 1px', textDecoration: 'none',
   color: isActive ? 'var(--accent)' : 'var(--muted)',
-  fontSize: 9, fontWeight: 700, letterSpacing: '.5px', lineHeight: 1.7,
+  fontSize: 8.5, fontWeight: 700, letterSpacing: 0, lineHeight: 1.5, overflow: 'hidden',
 });
 
 export function Layout() {
@@ -119,7 +119,8 @@ export function Layout() {
       <nav style={{ display: 'flex', borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
         {items.map(i => (
           <NavLink key={i.ruta} to={i.ruta} end={i.ruta === '/'} style={navStyle}>
-            <span style={{ fontSize: 17 }}>{i.icono}</span><br />{i.etiqueta}
+            <span style={{ fontSize: 17 }}>{i.icono}</span>
+            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>{i.etiqueta}</span>
           </NavLink>
         ))}
       </nav>

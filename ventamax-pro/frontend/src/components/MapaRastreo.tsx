@@ -46,17 +46,34 @@ export function MapaRastreo({ vivos, recorrido, operaciones, rutas, alto = 460 }
     cap.clearLayers();
     const todasCoords: [number, number][] = [];
 
-    const dibujar = (pts: PuntoRecorrido[], ops: OperacionRecorrido[], color: string, vend?: string, conInicioFin = true) => {
+    // Pin redondo con el número de orden del punto.
+    const iconoNum = (n: number, color: string) => L.divIcon({
+      className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+      html: `<div style="background:${color};color:#06121f;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid #06121f;box-shadow:0 0 2px rgba(0,0,0,.6)">${n}</div>`,
+    });
+    // Marcador grande con emoji (inicio / fin).
+    const iconoEmoji = (txt: string, bg: string) => L.divIcon({
+      className: '', iconSize: [28, 28], iconAnchor: [14, 14],
+      html: `<div style="background:${bg};font-size:15px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #06121f;box-shadow:0 0 5px rgba(0,0,0,.7)">${txt}</div>`,
+    });
+
+    const dibujar = (pts: PuntoRecorrido[], ops: OperacionRecorrido[], color: string, vend?: string, inicioFin = true, numerar = true) => {
       const p = pts.filter(x => x.lat && x.lng);
       const coords = p.map(x => [x.lat, x.lng] as [number, number]);
       if (coords.length) {
         L.polyline(coords, { color, weight: 2.5, opacity: .95 }).addTo(cap);
-        p.forEach(x => L.circleMarker([x.lat, x.lng], { radius: 3, color, weight: 1, fillColor: color, fillOpacity: .7 })
-          .bindPopup(`${vend ? `<b>${esc(vend)}</b><br>` : ''}Punto de conexión<br>${hhmm(x.creadoEn)}`).addTo(cap));
+        p.forEach((x, idx) => {
+          const cab = vend ? `<b>${esc(vend)}</b><br>` : '';
+          const popup = `${cab}Punto #${idx + 1}<br>${hhmm(x.creadoEn)}`;
+          const m = numerar
+            ? L.marker([x.lat, x.lng], { icon: iconoNum(idx + 1, color) })
+            : L.circleMarker([x.lat, x.lng], { radius: 3, color, weight: 1, fillColor: color, fillOpacity: .7 });
+          m.bindPopup(popup).addTo(cap);
+        });
         todasCoords.push(...coords);
-        if (conInicioFin) {
-          L.circleMarker(coords[0], { radius: 7, color: '#06121f', weight: 2, fillColor: '#00e5a0', fillOpacity: 1 }).bindTooltip(`${vend ? vend + ' · ' : ''}Inicio`, { direction: 'top' }).addTo(cap);
-          L.circleMarker(coords[coords.length - 1], { radius: 7, color: '#06121f', weight: 2, fillColor: '#ff4060', fillOpacity: 1 }).bindTooltip(`${vend ? vend + ' · ' : ''}Último`, { direction: 'top' }).addTo(cap);
+        if (inicioFin) {
+          L.marker(coords[0], { icon: iconoEmoji('▶', '#00e5a0') }).bindTooltip(`${vend ? vend + ' · ' : ''}Inicio · ${hhmm(p[0].creadoEn)}`, { direction: 'top' }).addTo(cap);
+          L.marker(coords[coords.length - 1], { icon: iconoEmoji('🏁', '#ffffff') }).bindTooltip(`${vend ? vend + ' · ' : ''}Fin · ${hhmm(p[p.length - 1].creadoEn)}`, { direction: 'top' }).addTo(cap);
         }
       }
       (ops ?? []).filter(o => o.lat && o.lng).forEach(o => {
@@ -67,7 +84,8 @@ export function MapaRastreo({ vivos, recorrido, operaciones, rutas, alto = 460 }
     };
 
     if (rutas && rutas.length) {
-      rutas.forEach((r, i) => dibujar(r.puntos, r.operaciones, PALETA[i % PALETA.length], r.nombre, false));
+      // En la vista de varios vendedores: inicio/fin siempre; numeración solo si es uno (evita saturar).
+      rutas.forEach((r, i) => dibujar(r.puntos, r.operaciones, PALETA[i % PALETA.length], r.nombre, true, rutas.length === 1));
     } else if (recorrido || operaciones) {
       dibujar(recorrido ?? [], operaciones ?? [], '#00e5ff');
     }

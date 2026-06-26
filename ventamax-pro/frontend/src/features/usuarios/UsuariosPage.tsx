@@ -25,12 +25,19 @@ export function UsuariosPage() {
   const [reempId, setReempId] = useState<string | null>(null);
   const [reempInfo, setReempInfo] = useState<string | null>(null);
   const [reempErr, setReempErr] = useState<string | null>(null);
+  const [buscar, setBuscar] = useState('');
   const { usuario } = useAuth();
   const puedeCrearAdmins = usuario?.rol === 'ADMIN' || usuario?.rol === 'COADMIN';
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['usuarios'], queryFn: usuariosApi.listar });
   const { data: regiones } = useQuery({ queryKey: ['regiones'], queryFn: regionesApi.listar });
   const supervisores = (data ?? []).filter(u => u.rol === 'SUPERVISOR' && u.activo !== false);
+  const q = buscar.trim().toLowerCase();
+  const visibles = (data ?? []).filter(u => !q ||
+    u.nombre.toLowerCase().includes(q) ||
+    (u.documento ?? '').toLowerCase().includes(q) ||
+    (u.usuario ?? '').toLowerCase().includes(q) ||
+    (u.zona ?? '').toLowerCase().includes(q));
 
   // Estado del formulario de creación (controlado donde define el ticket)
   const [rolN, setRolN] = useState('VENDEDOR');
@@ -59,6 +66,8 @@ export function UsuariosPage() {
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', display: 'grid', gap: 12 }}>
       <button className="btn" onClick={() => setMostrarForm(v => !v)}>＋ Nuevo usuario</button>
+      <input placeholder="🔎 Buscar por documento, nombre o apellido…" value={buscar} onChange={e => setBuscar(e.target.value)} autoCapitalize="none" />
+      {q && <div className="muted" style={{ fontSize: 11, marginTop: -4 }}>{visibles.length} resultado(s)</div>}
 
       {mostrarForm && (
         <form className="card" style={{ display: 'grid', gap: 10 }}
@@ -146,7 +155,7 @@ export function UsuariosPage() {
         </form>
       )}
 
-      {data?.map(u => {
+      {visibles.map(u => {
         const esVend = u.rol === 'VENDEDOR';
         const canal = esVend ? canalDeZona(u.zona) : '';
         const supervisorNombre = esVend && u.supervisorId
@@ -237,9 +246,9 @@ export function UsuariosPage() {
                   <input name="meta" defaultValue={u.meta ?? 10000000} placeholder="Meta" inputMode="numeric" style={{ maxWidth: 130 }} />
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <input name="documento" defaultValue={u.documento ?? ''} placeholder="Documento" inputMode="numeric" />
-                  <input name="ciudad" defaultValue={u.ciudad ?? ''} placeholder="Ciudad" />
-                  <input name="telefono" defaultValue={u.telefono ?? ''} placeholder="Telefono" inputMode="tel" />
+                  <input name="documento" defaultValue={u.documento ?? ''} placeholder="Documento" inputMode="numeric" style={{ flex: 1, minWidth: 0 }} />
+                  <input name="ciudad" defaultValue={u.ciudad ?? ''} placeholder="Ciudad" style={{ flex: 1, minWidth: 0 }} />
+                  <input name="telefono" defaultValue={u.telefono ?? ''} placeholder="Telefono" inputMode="tel" style={{ flex: 1, minWidth: 0 }} />
                 </div>
 
                 {esVend ? (
