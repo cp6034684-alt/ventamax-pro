@@ -292,34 +292,16 @@ async function procesarInventario(
 
       const nuevos = filas.filter((f) => !mapa.has(f.codigo));
       if (nuevos.length) {
-        // Aprende del catálogo el factor TÍPICO (mediana) de cada lista respecto al TAT,
-        // para que el producto nuevo quede con el precio correcto por canal/tipología.
-        const frRows = await tx.$queryRaw<any[]>(Prisma.sql`
-          SELECT
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY "precioGeneral"   / "precioTat") FILTER (WHERE "precioGeneral"   > 0) AS general,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY "precioMayorista" / "precioTat") FILTER (WHERE "precioMayorista" > 0) AS mayorista,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY "precioDroguerias"/ "precioTat") FILTER (WHERE "precioDroguerias"> 0) AS droguerias,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY "precioTatViajeros"/"precioTat") FILTER (WHERE "precioTatViajeros">0) AS viajeros,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY "precioEntreSede" / "precioTat") FILTER (WHERE "precioEntreSede" > 0) AS entresede,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY "precioCompra"    / "precioTat") FILTER (WHERE "precioCompra"    > 0) AS compra,
-            mode() WITHIN GROUP (ORDER BY iva) AS iva
-          FROM productos WHERE "precioTat" > 0`);
-        const fr = frRows[0] ?? {};
-        const fac = (v: any) => { const n = Number(v); return Number.isFinite(n) && n > 0.05 && n < 20 ? n : 1; };
-        const fGen = fac(fr.general), fMay = fac(fr.mayorista), fDro = fac(fr.droguerias);
-        const fVia = fac(fr.viajeros), fEnt = fac(fr.entresede), fCom = fac(fr.compra);
-        const ivaDef = Number(fr.iva); const iva = Number.isFinite(ivaDef) ? ivaDef : 19;
-
+        // INTERINO: el producto nuevo entra con el precio TAT en todas las listas
+        // (vendible) hasta definir los márgenes por canal. NO inventa precios.
         await tx.producto.createMany({
           data: nuevos.map((nf) => {
             const p = nf.precioTat ?? 0;
-            const r = (x: number) => Math.round(p * x);
             return ({
               codigo: nf.codigo, nombre: nf.nombre || nf.codigo, marca: nf.marca ?? undefined,
-              precioTat: p, precioVenta: p,
-              precioGeneral: r(fGen), precioMayorista: r(fMay), precioDroguerias: r(fDro),
-              precioTatViajeros: r(fVia), precioEntreSede: r(fEnt), precioCompra: r(fCom),
-              iva, stock: 0,
+              precioTat: p, precioVenta: p, precioGeneral: p, precioMayorista: p,
+              precioDroguerias: p, precioTatViajeros: p, precioEntreSede: p,
+              iva: 19, stock: 0,
             } as any);
           }),
           skipDuplicates: true,
