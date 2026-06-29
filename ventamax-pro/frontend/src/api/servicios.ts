@@ -208,3 +208,10 @@ export const notificacionesApi = {
   marcarLeida: (id: string) => api<{ ok: boolean }>(`/notificaciones/${id}/leer`, { method: 'PATCH' }),
   marcarTodas: () => api<{ ok: boolean }>('/notificaciones/leer-todas', { method: 'POST' }),
 };
+
+export const configApi = {
+  factores: () => api<{ canal: string; factor: number }[]>('/config/factores'),
+  guardar: (factores: { canal: string; factor: number }[]) =>
+    api<{ ok: boolean }>('/config/factores', { method: 'PUT', body: JSON.stringify({ factores }) }),
+  recuperar: () => api<{ canal: string; factor: number }[]>('/config/factores/recuperar', { method: 'POST' }),
+};

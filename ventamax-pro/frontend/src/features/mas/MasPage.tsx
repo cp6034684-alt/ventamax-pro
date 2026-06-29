@@ -25,6 +25,7 @@ const MODULOS: Item[] = [
   { ruta: '/entregas',    icono: '🚚', titulo: 'Entregas',    descripcion: 'Cola de logistica: entregar, devolucion y recibo', roles: SOLO_SUPERVISOR },
   { ruta: '/reportes',    icono: '📈', titulo: 'Reportes',    descripcion: 'Ventas, ranking, cartera y exportar a Excel', roles: SOLO_SUPERVISOR },
   { ruta: '/importar',    icono: '📥', titulo: 'Importar Excel', descripcion: 'Carga masiva de clientes y productos', roles: ADMINS },
+  { ruta: '/factores',    icono: '🏷', titulo: 'Factores por canal', descripcion: 'Margen/precio de cada canal para productos nuevos', roles: ADMINS },
   { ruta: '/duplicados',  icono: '🧹', titulo: 'Clientes duplicados', descripcion: 'Detectar y fusionar clientes con el mismo NIT', roles: ADMINS },
   { ruta: '/usuarios',    icono: '👤', titulo: 'Usuarios',    descripcion: 'Vendedores, entregadores y permisos', roles: GESTION },
   { ruta: '/perfil',      icono: '⚙️', titulo: 'Mi perfil',   descripcion: 'Cambiar PIN y cerrar sesion', roles: SIN_ADMIN },

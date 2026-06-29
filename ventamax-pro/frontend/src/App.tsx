@@ -24,6 +24,7 @@ import { IndicadoresPage } from './features/indicadores/IndicadoresPage';
 import { DevolucionesPage } from './features/devoluciones/DevolucionesPage';
 import { BodegasPage } from './features/bodegas/BodegasPage';
 import { DuplicadosPage } from './features/duplicados/DuplicadosPage';
+import { FactoresPage } from './features/factores/FactoresPage';
 
 /** El entregador entra directo a su cola de entregas. */
 function Inicio() {
@@ -75,6 +76,7 @@ export function App() {
               <Route path="/importar" element={<ImportarPage />} />
               <Route path="/bodegas" element={<BodegasPage />} />
               <Route path="/duplicados" element={<DuplicadosPage />} />
+              <Route path="/factores" element={<FactoresPage />} />
             </Route>
           </Route>
 

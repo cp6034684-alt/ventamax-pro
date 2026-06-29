@@ -7,6 +7,7 @@ import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
 import { maxCodigoCliente } from '../clientes/codigo';
 import { env } from '../../config/env';
+import { factoresCanal } from '../config/config.routes';
 import { registrarActividad } from '../../utils/actividad';
 
 /**
@@ -292,15 +293,22 @@ async function procesarInventario(
 
       const nuevos = filas.filter((f) => !mapa.has(f.codigo));
       if (nuevos.length) {
-        // INTERINO: el producto nuevo entra con el precio TAT en todas las listas
-        // (vendible) hasta definir los márgenes por canal. NO inventa precios.
+        // Precios por canal a partir del TAT del archivo, usando los FACTORES configurados
+        // (relativos al precio General). No se inventan precios: solo se aplican tus factores.
+        const fac = await factoresCanal();
+        const fTAT = fac.TAT && fac.TAT > 0 ? fac.TAT : 1;
+        const fGen = fac.GENERAL ?? 1, fMay = fac.MAYORISTA ?? 1, fDro = fac.DROGUERIAS ?? 1;
+        const fVia = fac.TAT_VIAJEROS ?? 1, fEnt = fac.ENTRE_SEDE ?? 1;
         await tx.producto.createMany({
           data: nuevos.map((nf) => {
-            const p = nf.precioTat ?? 0;
+            const tat = nf.precioTat ?? 0;
+            const general = tat / fTAT; // base = precio General estimado desde el TAT
+            const r = (x: number) => Math.round(general * x);
             return ({
               codigo: nf.codigo, nombre: nf.nombre || nf.codigo, marca: nf.marca ?? undefined,
-              precioTat: p, precioVenta: p, precioGeneral: p, precioMayorista: p,
-              precioDroguerias: p, precioTatViajeros: p, precioEntreSede: p,
+              precioTat: tat, precioVenta: tat,
+              precioGeneral: r(fGen), precioMayorista: r(fMay), precioDroguerias: r(fDro),
+              precioTatViajeros: r(fVia), precioEntreSede: r(fEnt),
               iva: 19, stock: 0,
             } as any);
           }),
