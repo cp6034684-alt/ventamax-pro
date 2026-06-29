@@ -293,10 +293,17 @@ async function procesarInventario(
       const nuevos = filas.filter((f) => !mapa.has(f.codigo));
       if (nuevos.length) {
         await tx.producto.createMany({
-          data: nuevos.map((f) => ({
-            codigo: f.codigo, nombre: f.nombre || f.codigo, marca: f.marca ?? undefined,
-            precioTat: f.precioTat ?? 0, precioVenta: f.precioTat ?? 0, stock: 0,
-          })),
+          // Producto nuevo: queda VENDIBLE en todas las listas (todas = TAT por defecto)
+          // e IVA 19% por defecto. El archivo maestro de precios afina luego listas/IVA exactos.
+          data: nuevos.map((f) => {
+            const p = f.precioTat ?? 0;
+            return ({
+              codigo: f.codigo, nombre: f.nombre || f.codigo, marca: f.marca ?? undefined,
+              precioTat: p, precioVenta: p, precioGeneral: p, precioMayorista: p,
+              precioDroguerias: p, precioTatViajeros: p, precioEntreSede: p,
+              iva: 19, stock: 0,
+            } as any);
+          }),
           skipDuplicates: true,
         });
         const recien = await tx.producto.findMany({ where: { codigo: { in: nuevos.map((n) => n.codigo) } }, select: { id: true, codigo: true } });
