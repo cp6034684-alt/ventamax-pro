@@ -1,0 +1,21 @@
+name: Cargar ventas de prueba (300)
+
+on:
+  workflow_dispatch:
+    inputs:
+      cantidad:
+        description: "Cuantas ventas crear"
+        required: false
+        default: "300"
+
+jobs:
+  cargar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Crear ventas de prueba
+        run: |
+          curl -fsS -X POST "$API_BASE/importar/seed-ventas-prueba?n=${{ github.event.inputs.cantidad }}" \
+            -H "x-import-token: $IMPORT_TOKEN" -H "content-type: application/json"
+        env:
+          API_BASE: ${{ secrets.API_BASE }}
+          IMPORT_TOKEN: ${{ secrets.IMPORT_TOKEN }}

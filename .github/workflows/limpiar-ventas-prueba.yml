@@ -1,0 +1,16 @@
+name: Limpiar ventas de prueba
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  limpiar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Borrar ventas de prueba (SEED_PRUEBA)
+        run: |
+          curl -fsS -X POST "$API_BASE/importar/limpiar-ventas-prueba" \
+            -H "x-import-token: $IMPORT_TOKEN" -H "content-type: application/json"
+        env:
+          API_BASE: ${{ secrets.API_BASE }}
+          IMPORT_TOKEN: ${{ secrets.IMPORT_TOKEN }}

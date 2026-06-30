@@ -10,6 +10,7 @@ import { env } from '../../config/env';
 import { factoresCanal } from '../config/config.routes';
 import { registrarActividad } from '../../utils/actividad';
 import { notificarInventario } from '../../utils/notificaciones';
+import { seedVentasMix, limpiarVentasPrueba } from '../../utils/seedVentas';
 
 /**
  * El frontend lee el archivo Excel con SheetJS y envía las filas como JSON.
@@ -400,6 +401,13 @@ importarAutoRouter.get('/correos-inventario', importToken, async (_req, res, nex
 });
 
 // Regiones que reciben inventario (activas y con bodega principal). La usa el script de correo.
+// ── Ventas de prueba (token) — generan/limpian datos en la base real para revisar reportes. ──
+importarAutoRouter.post('/seed-ventas-prueba', importToken, async (req, res, next) => {
+  try { const n = Number(req.query.n) || 300; res.json(await seedVentasMix(n)); } catch (e) { next(e); }
+});
+importarAutoRouter.post('/limpiar-ventas-prueba', importToken, async (_req, res, next) => {
+  try { res.json(await limpiarVentasPrueba()); } catch (e) { next(e); }
+});
 importarAutoRouter.get('/regiones-inventario', importToken, async (_req, res, next) => {
   try {
     const rows = await db.$queryRaw<any[]>(Prisma.sql`
