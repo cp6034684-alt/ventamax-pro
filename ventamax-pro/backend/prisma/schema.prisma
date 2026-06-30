@@ -51,6 +51,7 @@ model Usuario {
   acargo    Usuario[] @relation("equipo")
   actividades Actividad[]
   notificaciones Notificacion[] @relation("notificaciones")
+  dispositivos Dispositivo[] @relation("dispositivos")
 
   @@index([rol, activo])
   @@map("usuarios")
@@ -399,4 +400,17 @@ model Notificacion {
   @@index([usuarioId, leida])
   @@index([creadoEn])
   @@map("notificaciones")
+}
+
+model Dispositivo {
+  id         String   @id @default(uuid())
+  usuarioId  String
+  token      String   @unique
+  plataforma String?
+  creadoEn   DateTime @default(now())
+
+  usuario Usuario @relation("dispositivos", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("dispositivos")
 }

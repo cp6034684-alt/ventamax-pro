@@ -1,5 +1,6 @@
 import { db } from '../config/db';
 import { metros } from '../modules/presencia/presencia.store';
+import { enviarPush } from './push';
 
 // Margen de error de localización aceptado: el vendedor debe estar EN el punto de venta.
 const UMBRAL_METROS = 120;
@@ -34,13 +35,10 @@ export function notificarInicioRuta(vendedorId: string, clienteId: string, tipo:
       if (dist > UMBRAL_METROS) return; // el vendedor NO está en el punto → no cumple la auditoría
 
       const hora = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-      await (db as any).notificacion.create({
-        data: {
-          usuarioId: supId, tipo: 'INICIO_RUTA',
-          titulo: `Inicio de ruta: ${v.nombre}`,
-          detalle: `Primera tienda: ${cli.nombre} · ${tipo === 'venta' ? 'Venta' : 'No compra'} · ${hora} · a ${dist} m del punto (ubicación auditada).`,
-        },
-      });
+      const tituloN = `Inicio de ruta: ${v.nombre}`;
+      const detalleN = `Primera tienda: ${cli.nombre} · ${tipo === 'venta' ? 'Venta' : 'No compra'} · ${hora} · a ${dist} m del punto (ubicación auditada).`;
+      await (db as any).notificacion.create({ data: { usuarioId: supId, tipo: 'INICIO_RUTA', titulo: tituloN, detalle: detalleN } });
+      enviarPush([supId], tituloN, detalleN, { tipo: 'INICIO_RUTA' });
     } catch { /* noop */ }
   })();
 }
@@ -62,13 +60,12 @@ export function notificarInventario(bodegaId: string, regionNombre: string | und
       const users = await db.usuario.findMany({ where: ({ activo: true, OR: filtros } as any), select: { id: true } });
       if (!users.length) return;
       const hora = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      const tituloI = `Inventario actualizado · ${nombre}`;
+      const detalleI = `Se cargó inventario a ${nombre} · ${total} producto(s) · ${hora}.`;
       await (db as any).notificacion.createMany({
-        data: users.map((u: any) => ({
-          usuarioId: u.id, tipo: 'INVENTARIO',
-          titulo: `Inventario actualizado · ${nombre}`,
-          detalle: `Se cargó inventario a ${nombre} · ${total} producto(s) · ${hora}.`,
-        })),
+        data: users.map((u: any) => ({ usuarioId: u.id, tipo: 'INVENTARIO', titulo: tituloI, detalle: detalleI })),
       });
+      enviarPush(users.map((u: any) => u.id), tituloI, detalleI, { tipo: 'INVENTARIO' });
     } catch { /* noop */ }
   })();
 }

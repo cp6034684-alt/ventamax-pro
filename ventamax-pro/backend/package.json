@@ -25,7 +25,8 @@
     "jsonwebtoken": "^9.0.2",
     "pino": "^9.3.2",
     "pino-http": "^10.2.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "firebase-admin": "^12.7.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -215,3 +215,10 @@ export const configApi = {
     api<{ ok: boolean }>('/config/factores', { method: 'PUT', body: JSON.stringify({ factores }) }),
   recuperar: () => api<{ canal: string; factor: number }[]>('/config/factores/recuperar', { method: 'POST' }),
 };
+
+export const dispositivosApi = {
+  registrar: (token: string, plataforma?: string) =>
+    api<{ ok: boolean }>('/dispositivos', { method: 'POST', body: JSON.stringify({ token, plataforma }) }),
+  eliminar: (token: string) =>
+    api<{ ok: boolean }>('/dispositivos', { method: 'DELETE', body: JSON.stringify({ token }) }),
+};

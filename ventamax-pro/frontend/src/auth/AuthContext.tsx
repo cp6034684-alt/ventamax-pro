@@ -2,6 +2,7 @@ import { createContext, useContext, useState, ReactNode, useEffect } from 'react
 import { setToken, getToken, onSesionExpirada } from '../api/client';
 import { authApi } from '../api/servicios';
 import { iniciarRastreoNativo, detenerRastreoNativo } from '../api/rastreoNativo';
+import { iniciarPush, detenerPush } from '../api/pushNativo';
 import type { Usuario } from '../api/tipos';
 
 interface AuthCtx {
@@ -27,12 +28,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(u);
     // App nativa: inicia el rastreo en segundo plano para roles de campo (no hace nada en navegador).
     if (u.rol === 'VENDEDOR' || u.rol === 'SUPERVISOR') iniciarRastreoNativo();
+    iniciarPush(); // notificaciones push para todos los roles
   };
 
   const cerrarSesion = () => {
     // Registra el cierre de sesion con el token actual antes de limpiarlo (fire-and-forget).
     authApi.logout().catch(() => {});
     detenerRastreoNativo();
+    detenerPush();
     setToken(null);
     sessionStorage.removeItem('vm_usuario');
     setUsuario(null);
