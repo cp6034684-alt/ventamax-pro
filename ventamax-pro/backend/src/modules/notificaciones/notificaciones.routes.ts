@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { db } from '../../config/db';
 import { requiereAuth } from '../../middleware/auth';
+import { env } from '../../config/env';
+import { enviarResumenSupervisores } from '../../utils/notificaciones';
 
 export const notificacionesRouter = Router();
 notificacionesRouter.use(requiereAuth);
@@ -31,4 +33,16 @@ notificacionesRouter.post('/leer-todas', async (req, res, next) => {
     await (db as any).notificacion.updateMany({ where: { usuarioId: req.usuario!.id, leida: false }, data: { leida: true } });
     res.json({ ok: true });
   } catch (e) { next(e); }
+});
+
+
+// ── Router con token para la tarea programada (10am, 12m, 4pm). No requiere login. ──
+export const notificacionesAutoRouter = Router();
+notificacionesAutoRouter.post('/resumen-supervisores', (req, res, next) => {
+  const tok = String(req.headers['x-import-token'] ?? '').trim();
+  const real = String(env.IMPORT_TOKEN ?? '').trim();
+  if (!real || tok !== real) return res.status(401).json({ error: 'Token invalido' });
+  next();
+}, async (_req, res, next) => {
+  try { res.json(await enviarResumenSupervisores()); } catch (e) { next(e); }
 });

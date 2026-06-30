@@ -18,7 +18,7 @@ import { presenciaRouter } from './modules/presencia/presencia.routes';
 import { rastreoRouter } from './modules/rastreo/rastreo.routes';
 import { regionesRouter, bodegasRouter } from './modules/bodegas/bodegas.routes';
 import { tareasRouter } from './modules/tareas/tareas.routes';
-import { notificacionesRouter } from './modules/notificaciones/notificaciones.routes';
+import { notificacionesRouter, notificacionesAutoRouter } from './modules/notificaciones/notificaciones.routes';
 import { configRouter } from './modules/config/config.routes';
 import { ciudadesRouter } from './modules/ciudades/ciudades.routes';
 import { dispositivosRouter } from './modules/dispositivos/dispositivos.routes';
@@ -64,6 +64,7 @@ export function crearApp() {
   app.use('/api/regiones', regionesRouter);
   app.use('/api/bodegas', bodegasRouter);
   app.use('/api/tareas', tareasRouter);
+  app.use('/api/notificaciones', notificacionesAutoRouter); // token (tarea programada), antes del router con login
   app.use('/api/notificaciones', notificacionesRouter);
   app.use('/api/config', configRouter);
   app.use('/api/ciudades', ciudadesRouter);
