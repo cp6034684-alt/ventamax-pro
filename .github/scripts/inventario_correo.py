@@ -78,21 +78,33 @@ def main():
     token = os.environ['IMPORT_TOKEN'].strip()
     regiones = [x.strip().upper() for x in os.environ.get('INV_REGIONES', 'QUINDIO,TOLIMA').split(',') if x.strip()]
 
+    # Remitentes autorizados (solo estos pueden actualizar inventario). Si está vacío, avisa.
+    remitentes = [x.strip().lower() for x in os.environ.get('GMAIL_REMITENTES', '').split(',') if x.strip()]
+    if not remitentes:
+        print('AVISO: GMAIL_REMITENTES está vacío → se aceptaría correo de cualquier remitente. Configúralo para mayor seguridad.')
+
+    ETIQUETA = 'ventamax-inv-procesado'  # marca anti-reproceso (se crea sola en Gmail)
+
     M = imaplib.IMAP4_SSL('imap.gmail.com')
     M.login(user, pw)
     M.select('INBOX')
     errores = 0
     for region in regiones:
-        typ, data = M.search(None, 'SUBJECT', region)
+        # Búsqueda Gmail: asunto con la región, con adjunto, NO procesado aún, y de un remitente autorizado.
+        raw = f'subject:{region} has:attachment -label:{ETIQUETA}'
+        if remitentes:
+            raw += ' from:(' + ' OR '.join(remitentes) + ')'
+        typ, data = M.search(None, 'X-GM-RAW', '"%s"' % raw)
         ids = data[0].split() if data and data[0] else []
         if not ids:
-            print(f"[{region}] sin correos con '{region}' en el asunto. Salto."); continue
-        latest = ids[-1]  # el más reciente
+            print(f"[{region}] sin correos NUEVOS (no procesados) que cumplan. Salto."); continue
+        latest = ids[-1]  # el más reciente sin procesar
         typ, msgdata = M.fetch(latest, '(RFC822)')
         msg = email.message_from_bytes(msgdata[0][1])
+        remite = email.utils.parseaddr(msg.get('From', ''))[1].lower()
         attach, fname = adjunto_excel(msg)
         if not attach:
-            print(f"[{region}] el correo más reciente no trae adjunto Excel. Salto."); continue
+            print(f"[{region}] el correo no trae adjunto Excel. Salto."); continue
         try:
             filas = parse_xlsx(attach)
         except Exception as e:
@@ -104,7 +116,9 @@ def main():
                               headers={'x-import-token': token, 'content-type': 'application/json'},
                               json={'region': region, 'archivo': fname, 'filas': filas}, timeout=180)
             if r.status_code in (200, 201):
-                print(f"[{region}] OK ({fname}) -> {r.json()}")
+                print(f"[{region}] OK ({fname} de {remite}) -> {r.json()}")
+                # Marca el correo como procesado para no volver a subirlo.
+                M.store(latest, '+X-GM-LABELS', ETIQUETA)
             else:
                 print(f"[{region}] FALLO {r.status_code}: {r.text[:300]}"); errores += 1
         except Exception as e:

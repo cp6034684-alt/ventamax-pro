@@ -34,6 +34,7 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GMAIL_REMITENTES: ${{ secrets.GMAIL_REMITENTES }}
           API_BASE: ${{ secrets.API_BASE }}
           IMPORT_TOKEN: ${{ secrets.IMPORT_TOKEN }}
           INV_REGIONES: ${{ secrets.INV_REGIONES }}
