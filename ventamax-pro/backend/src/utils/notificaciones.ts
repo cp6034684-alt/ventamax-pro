@@ -97,6 +97,7 @@ export async function enviarResumenSupervisores(): Promise<{ supervisores: numbe
     const facRows = await db.$queryRaw<any[]>(Prisma.sql`
       SELECT f."vendedorId" AS id,
              COALESCE(SUM(f.total),0)::float AS dinero,
+             COUNT(*) FILTER (WHERE f."tipoDoc" = 'VENTA')::int AS pedidos,
              COUNT(DISTINCT f."clienteId") FILTER (WHERE f."tipoDoc" = 'VENTA')::int AS impactados
       FROM facturas f
       WHERE f."vendedorId" IN (${Prisma.join(ids)}) AND f.estado <> 'ANULADA'
@@ -114,16 +115,18 @@ export async function enviarResumenSupervisores(): Promise<{ supervisores: numbe
       ) t GROUP BY "vendedorId"`);
     const fMap = new Map<string, any>(facRows.map((r: any) => [r.id, r]));
     const vMap = new Map<string, number>(visRows.map((r: any) => [r.id, Number(r.visitados) || 0]));
-    let totalDinero = 0;
+    let totalDinero = 0, totalPedidos = 0, totalImp = 0;
     const lineas = vendedores.map((v: any) => {
-      const f = fMap.get(v.id) ?? { dinero: 0, impactados: 0 };
+      const f = fMap.get(v.id) ?? { dinero: 0, impactados: 0, pedidos: 0 };
       const vis = vMap.get(v.id) ?? 0;
       const dinero = Number(f.dinero) || 0;
-      totalDinero += dinero;
-      return `• ${String(v.nombre).split(' ')[0]}: ${vis} visit · ${Number(f.impactados) || 0} imp · ${fmtPesos(dinero)}`;
+      const imp = Number(f.impactados) || 0;
+      const ped = Number(f.pedidos) || 0;
+      totalDinero += dinero; totalPedidos += ped; totalImp += imp;
+      return `• ${String(v.nombre).split(' ')[0]}: ${vis} visit · ${imp} imp · ${ped} ped · ${fmtPesos(dinero)}`;
     });
     const titulo = `Avance del equipo · ${hora}`;
-    const cuerpo = lineas.join('\n') + `\nTOTAL: ${fmtPesos(totalDinero)}`;
+    const cuerpo = lineas.join('\n') + `\nTOTAL: ${totalImp} imp · ${totalPedidos} ped · ${fmtPesos(totalDinero)}`;
     try { await (db as any).notificacion.create({ data: { usuarioId: sup.id, tipo: 'RESUMEN_EQUIPO', titulo, detalle: cuerpo } }); } catch { /* noop */ }
     enviarPush([sup.id], titulo, cuerpo, { tipo: 'RESUMEN_EQUIPO' });
     enviados++;
