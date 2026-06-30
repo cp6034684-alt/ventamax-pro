@@ -217,13 +217,16 @@ reportesRouter.get('/indicadores', async (req, res, next) => {
 // GET /api/reportes/exportar-detallado?desde=&hasta= — reporte detallado completo.
 // Una fila por referencia facturada (ventas y devoluciones). El costo solo
 // va para ADMIN/COADMIN. El frontend arma el .xlsx con estas columnas.
-reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR', 'VENDEDOR'), async (req, res, next) => {
   try {
-    const { desde, hasta } = rango(req);
+    const per = String(req.query.periodo ?? '');
+    const { desde, hasta } = per && per !== 'rango' ? rangoPeriodo(per) : rango(req);
     const veCosto = ['ADMIN', 'COADMIN'].includes(req.usuario!.rol);
 
+    const whereF: any = { estado: { not: 'ANULADA' }, creadoEn: { gte: desde, lte: hasta } };
+    if (req.usuario!.rol === 'VENDEDOR') whereF.vendedorId = req.usuario!.id;
     const facturas = await db.factura.findMany({
-      where: { estado: { not: 'ANULADA' }, creadoEn: { gte: desde, lte: hasta } },
+      where: whereF,
       orderBy: { creadoEn: 'asc' },
       include: {
         cliente: true,
