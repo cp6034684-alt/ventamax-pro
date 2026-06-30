@@ -33,7 +33,7 @@ export function enviarPush(usuarioIds: string[], titulo: string, cuerpo: string,
       const resp = await mod.messaging().sendEachForMulticast({
         notification: { title: titulo, body: cuerpo },
         data: data ?? {},
-        android: { priority: 'high', notification: { sound: 'default', channelId: 'ventamax' } },
+        android: { priority: 'high', notification: { sound: 'default' } },
         tokens,
       });
       // Limpia tokens inválidos para no acumular basura.
