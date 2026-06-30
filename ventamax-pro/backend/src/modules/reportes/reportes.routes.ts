@@ -1172,7 +1172,7 @@ reportesRouter.get('/devoluciones-detalle', requiereRol('ADMIN', 'COADMIN', 'SUP
       facturaOrigen: f.facturaOrigen?.consecutivo ?? null,
       cliente: f.cliente?.nombre ?? '', codigo: f.cliente?.codigo ?? null, nit: f.cliente?.nit ?? '',
       vendedor: f.vendedor?.nombre ?? '', hechaPor: f.entregador?.nombre ?? '',
-      valor: Math.abs(Number(f.total)), causal: f.causal ?? '',
+      valor: Math.abs(Number(f.total)), causal: f.causal ?? '', obs: f.obsDevolucion ?? '',
       items: (f.items ?? []).map((it: any) => ({ producto: it.producto?.nombre ?? '', cantidad: Math.abs(it.cantidad), total: Math.abs(Number(it.total)) })),
     }));
     const total = filas.reduce((s, r) => s + r.valor, 0);
