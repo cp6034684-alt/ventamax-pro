@@ -76,7 +76,20 @@ def main():
         return
     api = os.environ['API_BASE'].rstrip('/')
     token = os.environ['IMPORT_TOKEN'].strip()
-    regiones = [x.strip().upper() for x in os.environ.get('INV_REGIONES', 'QUINDIO,TOLIMA').split(',') if x.strip()]
+    # Regiones a revisar: se toman AUTOMATICAMENTE de la app (regionales activas con bodega
+    # principal). El secret INV_REGIONES queda solo como respaldo.
+    regiones = []
+    try:
+        rg = requests.get(f"{api}/importar/regiones-inventario", headers={'x-import-token': token}, timeout=30)
+        if rg.status_code == 200:
+            regiones = [str(x).strip().upper() for x in (rg.json().get('regiones') or []) if str(x).strip()]
+        else:
+            print(f'No pude leer regiones del backend (HTTP {rg.status_code}).')
+    except Exception as e:
+        print(f'No pude leer regiones del backend: {e}')
+    if not regiones:
+        regiones = [x.strip().upper() for x in os.environ.get('INV_REGIONES', 'QUINDIO,TOLIMA').split(',') if x.strip()]
+    print('Regiones a revisar: ' + ', '.join(regiones))
 
     # Remitentes autorizados: los administran los administradores DESDE LA APP
     # (Más → Correos de inventario). El secreto GMAIL_REMITENTES queda como respaldo.

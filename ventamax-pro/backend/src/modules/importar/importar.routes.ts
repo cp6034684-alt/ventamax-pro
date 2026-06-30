@@ -399,6 +399,14 @@ importarAutoRouter.get('/correos-inventario', importToken, async (_req, res, nex
   } catch (e) { next(e); }
 });
 
+// Regiones que reciben inventario (activas y con bodega principal). La usa el script de correo.
+importarAutoRouter.get('/regiones-inventario', importToken, async (_req, res, next) => {
+  try {
+    const rows = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT nombre FROM regiones WHERE activo = true AND "bodegaPrincipalId" IS NOT NULL ORDER BY nombre`);
+    res.json({ regiones: rows.map((r: any) => r.nombre) });
+  } catch (e) { next(e); }
+});
 importarAutoRouter.post('/inventario-auto', importToken, validarBody(loteInventarioAutoSchema), async (req, res, next) => {
   try {
     let bodegaId = req.body.bodegaId as string | undefined;
