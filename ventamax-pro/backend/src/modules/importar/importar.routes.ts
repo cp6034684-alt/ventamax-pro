@@ -9,6 +9,7 @@ import { maxCodigoCliente } from '../clientes/codigo';
 import { env } from '../../config/env';
 import { factoresCanal } from '../config/config.routes';
 import { registrarActividad } from '../../utils/actividad';
+import { notificarInventario } from '../../utils/notificaciones';
 
 /**
  * El frontend lee el archivo Excel con SheetJS y envía las filas como JSON.
@@ -359,7 +360,9 @@ async function procesarInventario(
 
 importarRouter.post('/inventario', validarBody(loteInventarioSchema), async (req, res, next) => {
   try {
-    res.json(await procesarInventario(req.body.bodegaId, req.body.filas, req.body.archivo ?? null, req.usuario!.id));
+    const resManual = await procesarInventario(req.body.bodegaId, req.body.filas, req.body.archivo ?? null, req.usuario!.id);
+    notificarInventario(req.body.bodegaId, undefined, Number((resManual as any).actualizados ?? 0) + Number((resManual as any).creados ?? 0));
+    res.json(resManual);
   } catch (e) { next(e); }
 });
 
@@ -395,7 +398,9 @@ importarAutoRouter.post('/inventario-auto', importToken, validarBody(loteInventa
       bodegaId = r.bodegaPrincipalId as string;
     }
     if (!bodegaId) return res.status(400).json({ error: 'Falta bodegaId o region' });
-    res.json(await procesarInventario(bodegaId, req.body.filas, req.body.archivo ?? 'auto', null));
+    const resAuto = await procesarInventario(bodegaId, req.body.filas, req.body.archivo ?? 'auto', null);
+    notificarInventario(bodegaId, req.body.region, Number((resAuto as any).actualizados ?? 0) + Number((resAuto as any).creados ?? 0));
+    res.json(resAuto);
   } catch (e) { next(e); }
 });
 

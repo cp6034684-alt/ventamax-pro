@@ -44,3 +44,31 @@ export function notificarInicioRuta(vendedorId: string, clienteId: string, tipo:
     } catch { /* noop */ }
   })();
 }
+
+/**
+ * Notifica que se cargó inventario a una regional: al supervisor y vendedores de esa
+ * regional y a todos los administradores. Fire-and-forget.
+ */
+export function notificarInventario(bodegaId: string, regionNombre: string | undefined, total: number) {
+  (async () => {
+    try {
+      let region: any = await (db as any).region.findFirst({ where: { bodegaPrincipalId: bodegaId }, select: { id: true, nombre: true } });
+      if (!region && regionNombre) {
+        region = await (db as any).region.findUnique({ where: { nombre: String(regionNombre).trim().toUpperCase() }, select: { id: true, nombre: true } });
+      }
+      const nombre = region?.nombre ?? regionNombre ?? 'la regional';
+      const filtros: any[] = [{ rol: { in: ['ADMIN', 'COADMIN'] } }];
+      if (region?.id) filtros.push({ regionId: region.id, rol: { in: ['SUPERVISOR', 'VENDEDOR'] } });
+      const users = await db.usuario.findMany({ where: ({ activo: true, OR: filtros } as any), select: { id: true } });
+      if (!users.length) return;
+      const hora = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      await (db as any).notificacion.createMany({
+        data: users.map((u: any) => ({
+          usuarioId: u.id, tipo: 'INVENTARIO',
+          titulo: `Inventario actualizado · ${nombre}`,
+          detalle: `Se cargó inventario a ${nombre} · ${total} producto(s) · ${hora}.`,
+        })),
+      });
+    } catch { /* noop */ }
+  })();
+}

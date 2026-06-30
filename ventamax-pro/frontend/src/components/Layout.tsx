@@ -107,7 +107,7 @@ export function Layout() {
         }}>⚡</div>
         <strong style={{ flex: 1, fontSize: 15 }}>{TITULOS[pathname] ?? 'VentaMax Pro'}</strong>
         <span className="muted" style={{ fontSize: 12 }}>{usuario?.nombre.split(' ')[0]}</span>
-        {esGestion && <NotificacionesBell />}
+        <NotificacionesBell />
         <NavLink to="/perfil" title="Mi perfil" style={{ textDecoration: 'none', fontSize: 18, lineHeight: 1 }}>⚙️</NavLink>
         <button onClick={cerrarSesion} title="Cerrar sesión" aria-label="Cerrar sesión"
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--red)', padding: 0 }}>⏻</button>
