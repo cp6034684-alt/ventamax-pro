@@ -69,8 +69,11 @@ def adjunto_excel(msg):
     return None, None
 
 def main():
-    user = os.environ['GMAIL_USER'].strip()
-    pw = os.environ['GMAIL_APP_PASSWORD'].strip().replace(' ', '')
+    user = os.environ.get('GMAIL_USER', '').strip()
+    pw = os.environ.get('GMAIL_APP_PASSWORD', '').strip().replace(' ', '')
+    if not user or not pw:
+        print('Correo no configurado aún (faltan GMAIL_USER / GMAIL_APP_PASSWORD). Salto.')
+        return
     api = os.environ['API_BASE'].rstrip('/')
     token = os.environ['IMPORT_TOKEN'].strip()
     regiones = [x.strip().upper() for x in os.environ.get('INV_REGIONES', 'QUINDIO,TOLIMA').split(',') if x.strip()]
