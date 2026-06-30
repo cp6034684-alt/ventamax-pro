@@ -78,10 +78,24 @@ def main():
     token = os.environ['IMPORT_TOKEN'].strip()
     regiones = [x.strip().upper() for x in os.environ.get('INV_REGIONES', 'QUINDIO,TOLIMA').split(',') if x.strip()]
 
-    # Remitentes autorizados (solo estos pueden actualizar inventario). Si está vacío, avisa.
-    remitentes = [x.strip().lower() for x in os.environ.get('GMAIL_REMITENTES', '').split(',') if x.strip()]
+    # Remitentes autorizados: los administran los administradores DESDE LA APP
+    # (Más → Correos de inventario). El secreto GMAIL_REMITENTES queda como respaldo.
+    remitentes = []
+    try:
+        rr = requests.get(f"{api}/importar/correos-inventario",
+                          headers={'x-import-token': token}, timeout=30)
+        if rr.status_code == 200:
+            remitentes = [str(x).strip().lower() for x in (rr.json().get('correos') or []) if str(x).strip()]
+        else:
+            print(f'No pude leer correos autorizados del backend (HTTP {rr.status_code}).')
+    except Exception as e:
+        print(f'No pude leer correos autorizados del backend: {e}')
     if not remitentes:
-        print('AVISO: GMAIL_REMITENTES está vacío → se aceptaría correo de cualquier remitente. Configúralo para mayor seguridad.')
+        remitentes = [x.strip().lower() for x in os.environ.get('GMAIL_REMITENTES', '').split(',') if x.strip()]
+    if remitentes:
+        print(f'Remitentes autorizados ({len(remitentes)}): ' + ', '.join(remitentes))
+    else:
+        print('AVISO: no hay remitentes autorizados (ni en la app ni en GMAIL_REMITENTES) -> se aceptaria correo de cualquiera. Configuralo en Mas -> Correos de inventario.')
 
     ETIQUETA = 'ventamax-inv-procesado'  # marca anti-reproceso (se crea sola en Gmail)
 

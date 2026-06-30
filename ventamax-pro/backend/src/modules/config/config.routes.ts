@@ -66,6 +66,30 @@ configRouter.post('/factores/recuperar', requiereRol('ADMIN', 'COADMIN'), async 
   } catch (e) { next(e); }
 });
 
+// -- Correos autorizados para inventario por correo --------------------------
+// Los administradores definen desde la app QUE remitentes pueden enviar el
+// Excel de inventario. El script de correo (tarea 3x/dia) lee esta lista.
+configRouter.get('/correos-inventario', requiereRol('ADMIN', 'COADMIN'), async (_req, res, next) => {
+  try {
+    const rows = await db.$queryRaw<any[]>(Prisma.sql`SELECT email FROM correos_inventario ORDER BY email`);
+    res.json(rows.map(r => r.email));
+  } catch (e) { next(e); }
+});
+
+configRouter.put('/correos-inventario', requiereRol('ADMIN', 'COADMIN'), async (req, res, next) => {
+  try {
+    const lista: string[] = Array.isArray(req.body?.correos) ? req.body.correos : [];
+    const limpios = [...new Set(lista
+      .map(c => String(c || '').trim().toLowerCase())
+      .filter(c => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c)))];
+    await db.$executeRaw(Prisma.sql`DELETE FROM correos_inventario`);
+    for (const email of limpios) {
+      await db.$executeRaw(Prisma.sql`INSERT INTO correos_inventario (email) VALUES (${email}) ON CONFLICT (email) DO NOTHING`);
+    }
+    res.json(limpios);
+  } catch (e) { next(e); }
+});
+
 // Helper reutilizable: factores por canal en un objeto.
 export async function factoresCanal(): Promise<Record<string, number>> {
   try {

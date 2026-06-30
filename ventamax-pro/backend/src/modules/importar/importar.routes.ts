@@ -389,6 +389,16 @@ const loteInventarioAutoSchema = z.object({
   })).min(1).max(5000),
 });
 export const importarAutoRouter = Router();
+
+// Lista de remitentes autorizados para inventario (la consume el script de correo).
+// Protegida por token (no requiere login de usuario).
+importarAutoRouter.get('/correos-inventario', importToken, async (_req, res, next) => {
+  try {
+    const rows = await db.$queryRaw<any[]>(Prisma.sql`SELECT email FROM correos_inventario ORDER BY email`);
+    res.json({ correos: rows.map((r: any) => r.email) });
+  } catch (e) { next(e); }
+});
+
 importarAutoRouter.post('/inventario-auto', importToken, validarBody(loteInventarioAutoSchema), async (req, res, next) => {
   try {
     let bodegaId = req.body.bodegaId as string | undefined;
