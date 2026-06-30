@@ -182,6 +182,11 @@ reportesRouter.get('/indicadores', async (req, res, next) => {
       }
     }
 
+    const fiadoRows = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(SUM(f.total - f.pagado),0)::float AS fiado FROM facturas f
+      WHERE f."metodoPago" = 'CREDITO' AND f.estado <> 'ANULADA' AND (f.total - f.pagado) > 0 ${fVend}`);
+    const fiadoTotal = fiadoRows[0]?.fiado ?? 0;
+
     res.json({
       periodo,
       vendedorId: vendedorId ?? null,
@@ -200,6 +205,7 @@ reportesRouter.get('/indicadores', async (req, res, next) => {
         categoriasImpactadas,
         efectividad: efectividadV,
         unidadesPorCliente: tot.clientes ? unidades / tot.clientes : 0,
+        fiadoTotal,
       },
       porVendedor,
       porCategoria,
@@ -747,6 +753,7 @@ reportesRouter.get('/ejecutivo', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), 
       scopeIds = equipo.map((u: any) => u.id);
       if (!scopeIds.length) scopeIds = [req.usuario!.id];
     }
+    if (req.usuario!.rol === 'VENDEDOR') scopeIds = [req.usuario!.id];
     const fScope = scopeIds ? Prisma.sql`AND f."vendedorId" IN (${Prisma.join(scopeIds)})` : Prisma.empty;
 
     // Fragmentos base
@@ -980,7 +987,7 @@ reportesRouter.get('/comparativo', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR')
 });
 
 // GET /api/reportes/cartera-detalle — cartera por cliente con facturas fiadas, items y días de mora.
-reportesRouter.get('/cartera-detalle', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
+reportesRouter.get('/cartera-detalle', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR', 'VENDEDOR'), async (req, res, next) => {
   try {
     let scopeIds: string[] | null = null;
     if (req.usuario!.rol === 'SUPERVISOR') {
@@ -997,7 +1004,7 @@ reportesRouter.get('/cartera-detalle', requiereRol('ADMIN', 'COADMIN', 'SUPERVIS
     const facturas = await db.factura.findMany({
       where, orderBy: { creadoEn: 'asc' }, take: 6000,
       include: ({
-        cliente: { select: { id: true, nombre: true, nit: true, direccion: true, barrio: true, ciudad: true, zona: true, telefono: true } },
+        cliente: { select: { id: true, nombre: true, codigo: true, nit: true, direccion: true, barrio: true, ciudad: true, zona: true, telefono: true } },
         vendedor: { select: { nombre: true, telefono: true, zona: true } },
         items: { include: { producto: { select: { nombre: true, categoria: true, iva: true } } } },
       } as any),
@@ -1015,7 +1022,7 @@ reportesRouter.get('/cartera-detalle', requiereRol('ADMIN', 'COADMIN', 'SUPERVIS
       const cid = f.cliente?.id ?? f.clienteId;
       if (!porCliente.has(cid)) {
         porCliente.set(cid, {
-          id: cid, nombre: f.cliente?.nombre ?? '—', nit: f.cliente?.nit ?? '',
+          id: cid, nombre: f.cliente?.nombre ?? '—', codigo: f.cliente?.codigo ?? null, nit: f.cliente?.nit ?? '',
           barrio: f.cliente?.barrio ?? '', telefono: f.cliente?.telefono ?? '',
           direccion: f.cliente?.direccion ?? '', ciudad: f.cliente?.ciudad ?? '',
           vendedor: f.vendedor?.nombre ?? '', saldo: 0, diasMoraMax: 0, facturas: [],
