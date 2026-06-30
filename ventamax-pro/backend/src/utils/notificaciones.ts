@@ -137,3 +137,28 @@ export async function enviarResumenSupervisores(): Promise<any> {
   }
   return { supervisores: sups.length, enviados, firebase, totalDispositivos, detalle };
 }
+
+
+/**
+ * Notifica al VENDEDOR cuando se registra una devolucion sobre una de sus ventas.
+ * Incluye numero de factura, cliente, codigo, valor y fecha de la factura. Fire-and-forget.
+ */
+export function notificarDevolucion(facturaId: string, montoDevuelto?: number, tipo?: string) {
+  (async () => {
+    try {
+      const f: any = await db.factura.findUnique({
+        where: { id: facturaId },
+        select: { consecutivo: true, total: true, creadoEn: true, vendedorId: true, cliente: { select: { nombre: true, codigo: true } } },
+      });
+      if (!f?.vendedorId) return;
+      const cod = f.cliente?.codigo != null ? 'VMX-' + String(f.cliente.codigo).padStart(4, '0') : 's/codigo';
+      const fecha = new Date(f.creadoEn).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: '2-digit', month: '2-digit', year: 'numeric' });
+      const valor = '$' + Math.round(Number(f.total)).toLocaleString('es-CO');
+      const titulo = `Devolucion - Factura #${f.consecutivo}`;
+      let cuerpo = `${f.cliente?.nombre ?? 'Cliente'} (${cod})\nFactura #${f.consecutivo} - ${valor} - ${fecha}`;
+      if (tipo) cuerpo += `\nDevolucion ${tipo}` + (montoDevuelto ? ` por $${Math.round(montoDevuelto).toLocaleString('es-CO')}` : '');
+      await (db as any).notificacion.create({ data: { usuarioId: f.vendedorId, tipo: 'DEVOLUCION', titulo, detalle: cuerpo } });
+      enviarPush([f.vendedorId], titulo, cuerpo, { tipo: 'DEVOLUCION' });
+    } catch { /* noop */ }
+  })();
+}

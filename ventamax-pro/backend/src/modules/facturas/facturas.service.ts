@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { db } from '../../config/db';
+import { notificarDevolucion } from '../../utils/notificaciones';
 import { precioDeLista } from '../productos/listas';
 
 // ── Inventario por bodega ─────────────────────────────────────
@@ -184,7 +185,8 @@ export async function registrarDevolucion(actorId: string, facturaId: string, da
   obs?: string;
   items?: { productoId: string; cantidad: number }[];
 }) {
-  return db.$transaction(async (tx: Prisma.TransactionClient) => {
+  let montoNotif = 0;
+  const resultado = await db.$transaction(async (tx: Prisma.TransactionClient) => {
     const origen: any = await tx.factura.findUnique({ where: { id: facturaId }, include: { items: true } });
     if (!origen) throw Object.assign(new Error('Factura no encontrada'), { status: 404, expose: true });
     if (origen.tipoDoc !== 'VENTA') throw Object.assign(new Error('Solo se devuelven ventas'), { status: 400, expose: true });
@@ -247,6 +249,7 @@ export async function registrarDevolucion(actorId: string, facturaId: string, da
     }
 
     const montoDevuelto = Math.abs(subtotalDev);
+    montoNotif = montoDevuelto;
     const data: any = {
       devuelta: datos.tipo,
       causal: datos.causal,
@@ -263,6 +266,8 @@ export async function registrarDevolucion(actorId: string, facturaId: string, da
     }
     return tx.factura.update({ where: { id: origen.id }, data });
   });
+  notificarDevolucion(facturaId, montoNotif, datos.tipo);
+  return resultado;
 }
 
 /**
