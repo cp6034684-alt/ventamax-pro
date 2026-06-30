@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { db } from '../../config/db';
 import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
@@ -39,8 +40,30 @@ function canalCod(c?: string) {
   if (u.startsWith('SUP')) return 'SUP';
   return 'GEN';
 }
+// Busca el codigo de ticket y la region de una ciudad en el catalogo (tabla ciudades);
+// si no esta, usa los valores fijos historicos (ARMENIA/IBAGUE/PEREIRA).
+async function infoCiudad(nombre?: string): Promise<{ codigo: string; regionId: string | null }> {
+  const u = sinTilde(String(nombre ?? '').trim().toUpperCase());
+  if (!u) return { codigo: '', regionId: null };
+  try {
+    const rows = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT codigo, "regionId" FROM ciudades WHERE upper(unaccent(nombre)) = ${u} LIMIT 1`);
+    if (rows[0]) return { codigo: String(rows[0].codigo || u.slice(0, 3)).toUpperCase(), regionId: rows[0].regionId ?? null };
+  } catch { /* sin catalogo: cae al fallback */ }
+  let regionId: string | null = null;
+  const regName = REG_CIU[u];
+  if (regName) {
+    try {
+      let r = await (db as any).region.findUnique({ where: { nombre: regName } });
+      if (!r) r = await (db as any).region.create({ data: { nombre: regName } });
+      regionId = r.id;
+    } catch { /* ignora */ }
+  }
+  return { codigo: CIU_COD[u] ?? u.slice(0, 3), regionId };
+}
+
 async function siguienteTicket(ciudad?: string, canal?: string) {
-  const ciu = ciudadCod(ciudad);
+  const ciu = (await infoCiudad(ciudad)).codigo || ciudadCod(ciudad);
   const vendedores = await db.usuario.findMany({ where: { zona: { startsWith: ciu + '-' } }, select: { zona: true } });
   let max = 0;
   for (const v of vendedores) {
@@ -111,12 +134,8 @@ usuariosRouter.post('/', validarBody(usuarioSchema), async (req, res, next) => {
     if (esCampo && (canalEf || resto.ciudad)) {
       if (!resto.zona && resto.ciudad) resto.zona = await siguienteTicket(resto.ciudad, canalEf);
       if (!resto.regionId && resto.ciudad) {
-        const regName = REG_CIU[sinTilde(String(resto.ciudad).trim().toUpperCase())];
-        if (regName) {
-          let r = await (db as any).region.findUnique({ where: { nombre: regName } });
-          if (!r) r = await (db as any).region.create({ data: { nombre: regName } });
-          resto.regionId = r.id;
-        }
+        const info = await infoCiudad(resto.ciudad);
+        if (info.regionId) resto.regionId = info.regionId;
       }
       if (!resto.listasPrecios) {
         resto.listasPrecios = canalCod(canalEf) === 'FOC' ? ['DROGUERIAS'] : ['GENERAL', 'MAYORISTA', 'TAT', 'DROGUERIAS'];
