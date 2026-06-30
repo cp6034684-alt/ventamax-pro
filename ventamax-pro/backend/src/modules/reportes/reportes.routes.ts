@@ -1146,6 +1146,40 @@ reportesRouter.get('/comparar-meses', requiereRol('ADMIN', 'COADMIN', 'SUPERVISO
   } catch (e) { next(e); }
 });
 
+// GET /api/reportes/devoluciones-detalle?periodo=&desde=&hasta= — lista de devoluciones del periodo.
+reportesRouter.get('/devoluciones-detalle', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR', 'VENDEDOR'), async (req, res, next) => {
+  try {
+    const per = String(req.query.periodo ?? '');
+    const { desde, hasta } = per && per !== 'rango' ? rangoPeriodo(per) : rango(req);
+    const where: any = { tipoDoc: 'DEVOLUCION', estado: { not: 'ANULADA' }, creadoEn: { gte: desde, lte: hasta } };
+    if (req.usuario!.rol === 'VENDEDOR') where.vendedorId = req.usuario!.id;
+    if (req.usuario!.rol === 'SUPERVISOR') {
+      const equipo = await db.usuario.findMany({ where: ({ OR: [{ supervisorId: req.usuario!.id }, { id: req.usuario!.id }] } as any), select: { id: true } });
+      where.vendedorId = { in: (equipo.map((u: any) => u.id).length ? equipo.map((u: any) => u.id) : [req.usuario!.id]) };
+    }
+    const devs = await db.factura.findMany({
+      where, orderBy: { creadoEn: 'desc' }, take: 4000,
+      include: ({
+        cliente: { select: { nombre: true, codigo: true, nit: true } },
+        vendedor: { select: { nombre: true } },
+        entregador: { select: { nombre: true } },
+        facturaOrigen: { select: { consecutivo: true } },
+        items: { include: { producto: { select: { nombre: true } } } },
+      } as any),
+    });
+    const filas = (devs as any[]).map(f => ({
+      id: f.id, fecha: f.creadoEn, consecutivo: f.consecutivo,
+      facturaOrigen: f.facturaOrigen?.consecutivo ?? null,
+      cliente: f.cliente?.nombre ?? '', codigo: f.cliente?.codigo ?? null, nit: f.cliente?.nit ?? '',
+      vendedor: f.vendedor?.nombre ?? '', hechaPor: f.entregador?.nombre ?? '',
+      valor: Math.abs(Number(f.total)), causal: f.causal ?? '',
+      items: (f.items ?? []).map((it: any) => ({ producto: it.producto?.nombre ?? '', cantidad: Math.abs(it.cantidad), total: Math.abs(Number(it.total)) })),
+    }));
+    const total = filas.reduce((s, r) => s + r.valor, 0);
+    res.json({ total, n: filas.length, filas });
+  } catch (e) { next(e); }
+});
+
 // GET /api/reportes/exportar-facturas?desde=&hasta= — filas planas para Excel (máx 10.000)
 reportesRouter.get('/exportar-facturas', requiereRol('ADMIN', 'COADMIN', 'SUPERVISOR'), async (req, res, next) => {
   try {
