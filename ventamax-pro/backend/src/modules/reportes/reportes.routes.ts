@@ -186,6 +186,12 @@ reportesRouter.get('/indicadores', async (req, res, next) => {
       SELECT COALESCE(SUM(f.total - f.pagado),0)::float AS fiado FROM facturas f
       WHERE f."metodoPago" = 'CREDITO' AND f.estado <> 'ANULADA' AND (f.total - f.pagado) > 0 ${fVend}`);
     const fiadoTotal = fiadoRows[0]?.fiado ?? 0;
+    const devRows = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(SUM(ABS(f.total)),0)::float AS valor, COUNT(*)::int AS n FROM facturas f
+      WHERE f."tipoDoc" = 'DEVOLUCION' AND f.estado <> 'ANULADA'
+        AND f."creadoEn" >= ${desde} AND f."creadoEn" <= ${hasta} ${fVend}`);
+    const devoluciones = devRows[0]?.valor ?? 0;
+    const pedidosDevueltos = devRows[0]?.n ?? 0;
 
     res.json({
       periodo,
@@ -206,6 +212,8 @@ reportesRouter.get('/indicadores', async (req, res, next) => {
         efectividad: efectividadV,
         unidadesPorCliente: tot.clientes ? unidades / tot.clientes : 0,
         fiadoTotal,
+        devoluciones,
+        pedidosDevueltos,
       },
       porVendedor,
       porCategoria,
