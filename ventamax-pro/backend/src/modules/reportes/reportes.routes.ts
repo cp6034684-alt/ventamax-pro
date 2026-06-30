@@ -252,10 +252,16 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
         const p: any = it.producto;
         const valorTotal = Number(it.total);
         const ivaPct = Number(p.iva ?? 0);
+        const cant = it.cantidad;
         // Los precios YA incluyen IVA: se desglosa, no se suma encima.
         const baseSinIva = ivaPct > 0 ? valorTotal / (1 + ivaPct / 100) : valorTotal;
         const ivaValor = Math.round((valorTotal - baseSinIva) * 100) / 100;
+        const precioUnit = Number(it.precioUnit);
+        const precioSinIvaUnit = ivaPct > 0 ? precioUnit / (1 + ivaPct / 100) : precioUnit;
         const costoUnit = Number(p.precioCompra ?? 0);
+        const margenUnit = precioSinIvaUnit - costoUnit;
+        const r2 = (x: number) => Math.round(x * 100) / 100;
+        const cc = (x: number): number | string => (veCosto ? r2(x) : '');
 
         filas.push({
           codigoRuta: f.vendedor?.zona ?? '',
@@ -285,14 +291,18 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
           segmento: p.segmento ?? '',
           subsegmento: p.subsegmento ?? '',
           cantidad: it.cantidad,
-          costo: veCosto ? Math.round(costoUnit * it.cantidad * 100) / 100 : '',
-          valorUnitario: Number(it.precioUnit),
-          valorTotal,
+          costoUnit: cc(costoUnit),
+          costoMasIvaUnit: cc(costoUnit * (1 + ivaPct / 100)),
           ivaPct,
           ivaValor,
-          valorConIva: valorTotal,
-          totalFactura: Number(f.total),
-          valorNota: esDev ? valorTotal : 0,
+          margenUnit: cc(margenUnit),
+          precioSinIvaUnit: r2(precioSinIvaUnit),
+          precioConIvaUnit: r2(precioUnit),
+          costoXcant: cc(costoUnit * cant),
+          costoXcantMasIva: cc(costoUnit * cant * (1 + ivaPct / 100)),
+          totalSinIva: r2(baseSinIva),
+          totalFacturaLinea: r2(valorTotal),
+          valorNota: esDev ? r2(valorTotal) : 0,
         });
       }
     }
