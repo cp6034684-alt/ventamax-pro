@@ -143,7 +143,7 @@ export async function enviarResumenSupervisores(): Promise<any> {
  * Notifica al VENDEDOR cuando se registra una devolucion sobre una de sus ventas.
  * Incluye numero de factura, cliente, codigo, valor y fecha de la factura. Fire-and-forget.
  */
-export function notificarDevolucion(facturaId: string, montoDevuelto?: number, tipo?: string) {
+export function notificarDevolucion(facturaId: string, actorId?: string, montoDevuelto?: number, tipo?: string) {
   (async () => {
     try {
       const f: any = await db.factura.findUnique({
@@ -157,6 +157,9 @@ export function notificarDevolucion(facturaId: string, montoDevuelto?: number, t
       const titulo = `Devolucion - Factura #${f.consecutivo}`;
       let cuerpo = `${f.cliente?.nombre ?? 'Cliente'} (${cod})\nFactura #${f.consecutivo} - ${valor} - ${fecha}`;
       if (tipo) cuerpo += `\nDevolucion ${tipo}` + (montoDevuelto ? ` por $${Math.round(montoDevuelto).toLocaleString('es-CO')}` : '');
+      const actor = actorId ? await db.usuario.findUnique({ where: { id: actorId }, select: { nombre: true } }) : null;
+      const cuando = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+      cuerpo += `\nHecha por: ${actor?.nombre ?? 'Usuario'} - ${cuando}`;
       await (db as any).notificacion.create({ data: { usuarioId: f.vendedorId, tipo: 'DEVOLUCION', titulo, detalle: cuerpo } });
       enviarPush([f.vendedorId], titulo, cuerpo, { tipo: 'DEVOLUCION' });
     } catch { /* noop */ }

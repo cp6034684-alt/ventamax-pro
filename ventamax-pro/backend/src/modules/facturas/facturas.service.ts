@@ -266,7 +266,7 @@ export async function registrarDevolucion(actorId: string, facturaId: string, da
     }
     return tx.factura.update({ where: { id: origen.id }, data });
   });
-  notificarDevolucion(facturaId, montoNotif, datos.tipo);
+  notificarDevolucion(facturaId, actorId, montoNotif, datos.tipo);
   return resultado;
 }
 
