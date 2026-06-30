@@ -402,6 +402,25 @@ importarAutoRouter.get('/correos-inventario', importToken, async (_req, res, nex
 
 // Regiones que reciben inventario (activas y con bodega principal). La usa el script de correo.
 // ── Ventas de prueba (token) — generan/limpian datos en la base real para revisar reportes. ──
+// ── Migrar tickets viejos (ARM-07-MIX) al formato compacto (AM7). Token. Idempotente. ──
+importarAutoRouter.post('/migrar-tickets', importToken, async (_req, res, next) => {
+  try {
+    const CAN: Record<string, string> = { MIX: 'M', FOC: 'F', MAY: 'Y', VIA: 'V', SUP: 'S' };
+    const vend = await (db as any).usuario.findMany({ where: { rol: { in: ['VENDEDOR', 'SUPERVISOR'] } }, select: { id: true, zona: true } });
+    const cambios: any[] = [];
+    for (const v of vend) {
+      const z = String(v.zona ?? '').toUpperCase();
+      const m = /^([A-Z]{3})-(\d+)-([A-Z]{3})$/.exec(z);
+      if (!m) continue;
+      const nuevo = `${m[1][0]}${CAN[m[3]] ?? m[3][0]}${parseInt(m[2], 10)}`;
+      if (nuevo === z) continue;
+      await (db as any).cliente.updateMany({ where: { zona: v.zona }, data: { zona: nuevo } });
+      await (db as any).usuario.update({ where: { id: v.id }, data: { zona: nuevo } });
+      cambios.push({ de: v.zona, a: nuevo });
+    }
+    res.json({ migrados: cambios.length, cambios });
+  } catch (e) { next(e); }
+});
 importarAutoRouter.post('/seed-ventas-prueba', importToken, async (req, res, next) => {
   try { const n = Number(req.query.n) || 300; res.json(await seedVentasMix(n)); } catch (e) { next(e); }
 });

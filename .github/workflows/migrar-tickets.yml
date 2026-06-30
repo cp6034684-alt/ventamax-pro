@@ -1,0 +1,16 @@
+name: Migrar tickets a formato compacto
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  migrar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Migrar tickets viejos a compacto
+        run: |
+          curl -fsS -X POST "$API_BASE/importar/migrar-tickets" \
+            -H "x-import-token: $IMPORT_TOKEN" -H "content-type: application/json"
+        env:
+          API_BASE: ${{ secrets.API_BASE }}
+          IMPORT_TOKEN: ${{ secrets.IMPORT_TOKEN }}
