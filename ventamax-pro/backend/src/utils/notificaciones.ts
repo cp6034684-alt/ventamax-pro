@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { db } from '../config/db';
 import { metros } from '../modules/presencia/presencia.store';
-import { enviarPush } from './push';
+import { enviarPush, enviarPushDetallado, pushDisponible } from './push';
 
 // Margen de error de localización aceptado: el vendedor debe estar EN el punto de venta.
 const UMBRAL_METROS = 120;
@@ -84,11 +84,14 @@ function inicioDiaColombiaUTC(): Date {
  * Envia a cada supervisor un push con el avance de HOY de sus vendedores asignados:
  * clientes visitados, clientes impactados y dinero. Lo dispara la tarea (10am, 12m, 4pm).
  */
-export async function enviarResumenSupervisores(): Promise<{ supervisores: number; enviados: number }> {
+export async function enviarResumenSupervisores(): Promise<any> {
   const desde = inicioDiaColombiaUTC();
   const hasta = new Date();
   const hora = hasta.toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true });
   const sups = await db.usuario.findMany({ where: ({ rol: 'SUPERVISOR', activo: true } as any), select: { id: true, nombre: true } });
+  const firebase = pushDisponible();
+  const totalDispositivos = await (db as any).dispositivo.count();
+  const detalle: any[] = [];
   let enviados = 0;
   for (const sup of sups) {
     const vendedores = await db.usuario.findMany({ where: ({ rol: 'VENDEDOR', activo: true, supervisorId: sup.id } as any), select: { id: true, nombre: true } });
@@ -128,8 +131,9 @@ export async function enviarResumenSupervisores(): Promise<{ supervisores: numbe
     const titulo = `Avance del equipo · ${hora}`;
     const cuerpo = lineas.join('\n') + `\nTOTAL: ${totalImp} imp · ${totalPedidos} ped · ${fmtPesos(totalDinero)}`;
     try { await (db as any).notificacion.create({ data: { usuarioId: sup.id, tipo: 'RESUMEN_EQUIPO', titulo, detalle: cuerpo } }); } catch { /* noop */ }
-    enviarPush([sup.id], titulo, cuerpo, { tipo: 'RESUMEN_EQUIPO' });
+    const det = await enviarPushDetallado([sup.id], titulo, cuerpo, { tipo: 'RESUMEN_EQUIPO' });
+    detalle.push({ supervisor: sup.nombre, vendedores: vendedores.length, dispositivos: det.tokens, exitos: det.exitos, fallos: det.fallos, errores: det.errores });
     enviados++;
   }
-  return { supervisores: sups.length, enviados };
+  return { supervisores: sups.length, enviados, firebase, totalDispositivos, detalle };
 }
