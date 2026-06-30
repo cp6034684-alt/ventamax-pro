@@ -260,6 +260,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
         const precioSinIvaUnit = ivaPct > 0 ? precioUnit / (1 + ivaPct / 100) : precioUnit;
         const costoUnit = Number(p.precioCompra ?? 0);
         const margenUnit = precioSinIvaUnit - costoUnit;
+        const margenPct = precioSinIvaUnit > 0 ? Math.round((margenUnit / precioSinIvaUnit) * 1000) / 10 : 0;
         const r2 = (x: number) => Math.round(x * 100) / 100;
         const cc = (x: number): number | string => (veCosto ? r2(x) : '');
 
@@ -296,6 +297,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
           ivaPct,
           ivaValor,
           margenUnit: cc(margenUnit),
+          margenPct: veCosto ? margenPct : '',
           precioSinIvaUnit: r2(precioSinIvaUnit),
           precioConIvaUnit: r2(precioUnit),
           costoXcant: cc(costoUnit * cant),
