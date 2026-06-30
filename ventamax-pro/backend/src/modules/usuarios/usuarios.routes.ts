@@ -27,18 +27,18 @@ const usuarioSchema = z.object({
 const ROLES_ELEVADOS = ['ADMIN', 'COADMIN'];
 
 // ── Ticket/zona del vendedor: CIUDAD-NN-CANAL (ej. ARM-07-MIX) ──
-const CIU_COD: Record<string, string> = { ARMENIA: 'ARM', IBAGUE: 'IBG', PEREIRA: 'PER' };
+const CIU_COD: Record<string, string> = { ARMENIA: 'A', IBAGUE: 'I', PEREIRA: 'P' };
 const REG_CIU: Record<string, string> = { ARMENIA: 'QUINDIO', PEREIRA: 'QUINDIO', IBAGUE: 'TOLIMA' };
 const sinTilde = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-function ciudadCod(c?: string) { const u = sinTilde(String(c ?? '').trim().toUpperCase()); return CIU_COD[u] ?? u.slice(0, 3); }
+function ciudadCod(c?: string) { const u = sinTilde(String(c ?? '').trim().toUpperCase()); return (CIU_COD[u] ?? u.slice(0, 1)).slice(0, 1); }
 function canalCod(c?: string) {
   const u = String(c ?? '').trim().toUpperCase();
-  if (u.startsWith('MIX')) return 'MIX';
-  if (u.startsWith('FOC')) return 'FOC';
-  if (u.startsWith('MAY')) return 'MAY';
-  if (u.startsWith('VIA')) return 'VIA';
-  if (u.startsWith('SUP')) return 'SUP';
-  return 'GEN';
+  if (u.startsWith('MIX')) return 'M';
+  if (u.startsWith('FOC')) return 'F';
+  if (u.startsWith('MAY')) return 'Y';
+  if (u.startsWith('VIA')) return 'V';
+  if (u.startsWith('SUP')) return 'S';
+  return 'G';
 }
 // Busca el codigo de ticket y la region de una ciudad en el catalogo (tabla ciudades);
 // si no esta, usa los valores fijos historicos (ARMENIA/IBAGUE/PEREIRA).
@@ -48,7 +48,7 @@ async function infoCiudad(nombre?: string): Promise<{ codigo: string; regionId: 
   try {
     const rows = await db.$queryRaw<any[]>(Prisma.sql`
       SELECT codigo, "regionId" FROM ciudades WHERE upper(unaccent(nombre)) = ${u} LIMIT 1`);
-    if (rows[0]) return { codigo: String(rows[0].codigo || u.slice(0, 3)).toUpperCase(), regionId: rows[0].regionId ?? null };
+    if (rows[0]) return { codigo: String(rows[0].codigo || u.slice(0, 1)).toUpperCase().slice(0, 1), regionId: rows[0].regionId ?? null };
   } catch { /* sin catalogo: cae al fallback */ }
   let regionId: string | null = null;
   const regName = REG_CIU[u];
@@ -59,18 +59,26 @@ async function infoCiudad(nombre?: string): Promise<{ codigo: string; regionId: 
       regionId = r.id;
     } catch { /* ignora */ }
   }
-  return { codigo: CIU_COD[u] ?? u.slice(0, 3), regionId };
+  return { codigo: (CIU_COD[u] ?? u.slice(0, 1)).slice(0, 1), regionId };
 }
 
+// Numero consecutivo de un ticket si pertenece a la ciudad `ciu` (1 letra). Acepta el
+// formato compacto nuevo (AM7) y el viejo (ARM-07-MIX), para no repetir numeros.
+function numeroDeTicket(zona: string, ciu: string): number {
+  const z = String(zona ?? '').toUpperCase();
+  let m = new RegExp('^' + ciu + '[MFYVSG](\\d+)$').exec(z);
+  if (m) return parseInt(m[1], 10) || 0;
+  m = /^([A-Z]{3})-(\d+)-[A-Z]{3}$/.exec(z);
+  if (m && m[1][0] === ciu) return parseInt(m[2], 10) || 0;
+  return 0;
+}
 async function siguienteTicket(ciudad?: string, canal?: string) {
-  const ciu = (await infoCiudad(ciudad)).codigo || ciudadCod(ciudad);
-  const vendedores = await db.usuario.findMany({ where: { zona: { startsWith: ciu + '-' } }, select: { zona: true } });
+  const info = await infoCiudad(ciudad);
+  const ciu = ((info.codigo || sinTilde(String(ciudad ?? '')).toUpperCase().slice(0, 1)) || 'X').slice(0, 1);
+  const vendedores = await db.usuario.findMany({ where: { zona: { not: null } }, select: { zona: true } });
   let max = 0;
-  for (const v of vendedores) {
-    const m = /^[A-Z]{3}-(\d+)-/.exec(String(v.zona ?? ''));
-    if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; }
-  }
-  return `${ciu}-${String(max + 1).padStart(2, '0')}-${canalCod(canal)}`;
+  for (const v of vendedores) { const n = numeroDeTicket(String(v.zona ?? ''), ciu); if (n > max) max = n; }
+  return `${ciu}${canalCod(canal)}${max + 1}`;
 }
 
 export const usuariosRouter = Router();
@@ -138,7 +146,7 @@ usuariosRouter.post('/', validarBody(usuarioSchema), async (req, res, next) => {
         if (info.regionId) resto.regionId = info.regionId;
       }
       if (!resto.listasPrecios) {
-        resto.listasPrecios = canalCod(canalEf) === 'FOC' ? ['DROGUERIAS'] : ['GENERAL', 'MAYORISTA', 'TAT', 'DROGUERIAS'];
+        resto.listasPrecios = canalCod(canalEf) === 'F' ? ['DROGUERIAS'] : ['GENERAL', 'MAYORISTA', 'TAT', 'DROGUERIAS'];
       }
     }
     const u = await db.usuario.create({
@@ -181,10 +189,15 @@ usuariosRouter.patch('/:id', async (req, res, next) => {
     // (conserva CIUDAD-NN) y reasigna las listas de precio del canal.
     if (req.body.canal) {
       const actual = await db.usuario.findUnique({ where: { id: req.params.id }, select: { zona: true, ciudad: true } });
-      const c3 = canalCod(req.body.canal);
-      const m = /^([A-Z]{3})-(\d+)-/.exec(String(actual?.zona ?? ''));
-      data.zona = m ? `${m[1]}-${m[2]}-${c3}` : await siguienteTicket(actual?.ciudad ?? req.body.ciudad ?? '', req.body.canal);
-      data.listasPrecios = c3 === 'FOC' ? ['DROGUERIAS'] : ['GENERAL', 'MAYORISTA', 'TAT', 'DROGUERIAS'];
+      const kLetra = canalCod(req.body.canal);
+      const z = String(actual?.zona ?? '').toUpperCase();
+      const nm = /^([A-Z])[MFYVSG](\d+)$/.exec(z);            // compacto: conserva ciudad y numero
+      if (nm) data.zona = `${nm[1]}${kLetra}${nm[2]}`;
+      else {
+        const vm = /^([A-Z]{3})-(\d+)-[A-Z]{3}$/.exec(z);     // viejo -> migra a compacto, conserva numero
+        data.zona = vm ? `${vm[1][0]}${kLetra}${parseInt(vm[2], 10)}` : await siguienteTicket(actual?.ciudad ?? req.body.ciudad ?? '', req.body.canal);
+      }
+      data.listasPrecios = kLetra === 'F' ? ['DROGUERIAS'] : ['GENERAL', 'MAYORISTA', 'TAT', 'DROGUERIAS'];
     }
     try {
       res.json(await db.usuario.update({

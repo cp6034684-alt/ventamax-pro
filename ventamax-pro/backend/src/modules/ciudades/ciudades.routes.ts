@@ -24,9 +24,9 @@ ciudadesRouter.post('/', requiereRol('ADMIN', 'COADMIN'), async (req, res, next)
     if (!nombre) return res.status(400).json({ error: 'El nombre de la ciudad es obligatorio' });
     const sin = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
     let codigo = String(req.body?.codigo ?? '').trim().toUpperCase().replace(/[^A-Z]/g, '');
-    if (!codigo) codigo = sin.replace(/[^A-Z]/g, '').slice(0, 3);
-    codigo = codigo.slice(0, 3);
-    if (codigo.length < 2) return res.status(400).json({ error: 'El codigo del ticket debe tener al menos 2 letras' });
+    if (!codigo) codigo = sin.replace(/[^A-Z]/g, '').slice(0, 1);
+    codigo = codigo.slice(0, 1);
+    if (codigo.length < 1) return res.status(400).json({ error: 'El codigo del ticket necesita al menos 1 letra' });
     const regionId = req.body?.regionId ? String(req.body.regionId) : null;
     try {
       const rows = await db.$queryRaw<any[]>(Prisma.sql`
