@@ -29,3 +29,12 @@ jobs:
           IMPORT_TOKEN: ${{ secrets.IMPORT_TOKEN }}
           REGIONES: ${{ secrets.INV_REGIONES }}
         run: python .github/scripts/inventario_auto.py
+
+      - name: Actualizar inventario desde Correo (Gmail)
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          API_BASE: ${{ secrets.API_BASE }}
+          IMPORT_TOKEN: ${{ secrets.IMPORT_TOKEN }}
+          INV_REGIONES: ${{ secrets.INV_REGIONES }}
+        run: python .github/scripts/inventario_correo.py
