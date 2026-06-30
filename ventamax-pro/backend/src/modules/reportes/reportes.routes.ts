@@ -255,7 +255,6 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
         const cant = it.cantidad;
         // Los precios YA incluyen IVA: se desglosa, no se suma encima.
         const baseSinIva = ivaPct > 0 ? valorTotal / (1 + ivaPct / 100) : valorTotal;
-        const ivaValor = Math.round((valorTotal - baseSinIva) * 100) / 100;
         const precioUnit = Number(it.precioUnit);
         const precioSinIvaUnit = ivaPct > 0 ? precioUnit / (1 + ivaPct / 100) : precioUnit;
         const costoUnit = Number(p.precioCompra ?? 0);
@@ -295,7 +294,7 @@ reportesRouter.get('/exportar-detallado', requiereRol('ADMIN', 'COADMIN', 'SUPER
           costoUnit: cc(costoUnit),
           costoMasIvaUnit: cc(costoUnit * (1 + ivaPct / 100)),
           ivaPct,
-          ivaValor,
+          ivaValor: r2(precioUnit - precioSinIvaUnit),
           margenUnit: cc(margenUnit),
           margenPct: veCosto ? margenPct : '',
           precioSinIvaUnit: r2(precioSinIvaUnit),
