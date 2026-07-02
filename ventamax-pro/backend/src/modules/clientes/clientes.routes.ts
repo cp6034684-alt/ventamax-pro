@@ -12,6 +12,32 @@ import { notificarInicioRuta } from '../../utils/notificaciones';
 export const clientesRouter = Router();
 clientesRouter.use(requiereAuth);
 
+const normCiudad = (s: any) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+// Ciudades que un usuario de CAMPO puede ver: las de su region (catalogo) + su propia ciudad.
+// ADMIN/COADMIN -> null (ven todo).
+async function ciudadesPermitidas(u: { id: string; rol: string }): Promise<string[] | null> {
+  if (u.rol === 'ADMIN' || u.rol === 'COADMIN') return null;
+  const usr: any = await db.usuario.findUnique({ where: { id: u.id }, select: ({ regionId: true, ciudad: true } as any) });
+  const set = new Set<string>();
+  if (usr?.regionId) {
+    try {
+      const cs = await db.$queryRaw<any[]>(Prisma.sql`SELECT nombre FROM ciudades WHERE "regionId" = ${usr.regionId}`);
+      for (const c of cs) set.add(normCiudad(c.nombre));
+    } catch { /* sin catalogo de ciudades */ }
+  }
+  if (usr?.ciudad) set.add(normCiudad(usr.ciudad));
+  return [...set];
+}
+function condCiudadFrag(cities: string[] | null) {
+  if (cities === null) return null;
+  if (!cities.length) return Prisma.sql`1=0`;
+  return Prisma.sql`trim(unaccent(upper(coalesce(ciudad,'')))) IN (${Prisma.join(cities)})`;
+}
+function condCiudad(cities: string[] | null) {
+  const f = condCiudadFrag(cities);
+  return f ? Prisma.sql` AND ${f}` : Prisma.empty;
+}
+
 // GET /api/clientes?busqueda=&dia=&pagina=&porPagina=
 clientesRouter.get('/', async (req, res, next) => {
   try {
@@ -37,6 +63,8 @@ clientesRouter.get('/', async (req, res, next) => {
         ${porCodigo}
       )`);
     }
+    const _cc = condCiudadFrag(await ciudadesPermitidas(req.usuario!));
+    if (_cc) cond.push(_cc);
     const where = Prisma.join(cond, ' AND ');
     const [datos, totalRows] = await Promise.all([
       db.$queryRaw<any[]>(Prisma.sql`SELECT * FROM clientes WHERE ${where} ORDER BY nombre ASC OFFSET ${skip} LIMIT ${take}`),
@@ -50,16 +78,13 @@ clientesRouter.get('/', async (req, res, next) => {
 // Debe ir ANTES de "/:id" para que Express no lo trate como un id.
 clientesRouter.get('/barrios', async (req, res, next) => {
   try {
-    const where: any = { activo: true, barrio: { not: null } };
-    if (req.query.dia) where.diaVisita = Number(req.query.dia);
-    const filas = await db.cliente.groupBy({
-      by: ['barrio'],
-      where,
-      _count: true,
-      orderBy: { _count: { barrio: 'desc' } },
-      take: 100,
-    });
-    res.json(filas.map((f: any) => ({ barrio: f.barrio as string, total: f._count })));
+    const cc = condCiudad(await ciudadesPermitidas(req.usuario!));
+    const dia = req.query.dia ? Prisma.sql` AND "diaVisita" = ${Number(req.query.dia)}` : Prisma.empty;
+    const filas = await db.$queryRaw<any[]>(Prisma.sql`
+      SELECT barrio, COUNT(*)::int AS total FROM clientes
+      WHERE activo = true AND barrio IS NOT NULL${dia}${cc}
+      GROUP BY barrio ORDER BY total DESC LIMIT 100`);
+    res.json(filas.map((f: any) => ({ barrio: f.barrio as string, total: f.total })));
   } catch (e) { next(e); }
 });
 
@@ -130,11 +155,13 @@ clientesRouter.get('/mapa', async (req, res, next) => {
   try {
     const where: any = { activo: true, lat: { not: null }, lng: { not: null } };
     if (req.query.dia) where.diaVisita = Number(req.query.dia);
-    const clientes = await db.cliente.findMany({
+    const _cities = await ciudadesPermitidas(req.usuario!);
+    let clientes = await db.cliente.findMany({
       where,
       select: { id: true, nombre: true, codigo: true, direccion: true, barrio: true, ciudad: true, telefono: true, lat: true, lng: true, diaVisita: true },
       take: 5000,
     });
+    if (_cities !== null) clientes = clientes.filter((c: any) => _cities.includes(normCiudad(c.ciudad)));
     const ids = clientes.map((c: any) => c.id);
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
     const [vendidas, visitas] = ids.length ? await Promise.all([
