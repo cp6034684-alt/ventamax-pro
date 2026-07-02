@@ -4,7 +4,7 @@ import { db } from '../../config/db';
 import { requiereAuth, requiereRol } from '../../middleware/auth';
 import { validarBody } from '../../middleware/validate';
 import { leerPaginacion, respuestaPaginada } from '../../utils/pagination';
-import { clienteSchema, clienteUpdateSchema } from './clientes.schemas';
+import { clienteSchema, clienteCrearSchema, clienteUpdateSchema } from './clientes.schemas';
 import { maxCodigoCliente } from './codigo';
 import { registrarActividad } from '../../utils/actividad';
 import { notificarInicioRuta } from '../../utils/notificaciones';
@@ -13,9 +13,9 @@ export const clientesRouter = Router();
 clientesRouter.use(requiereAuth);
 
 const normCiudad = (s: any) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
-// Ciudades que un usuario de CAMPO puede ver: las de su region (catalogo) + su propia ciudad.
-// ADMIN/COADMIN -> null (ven todo).
-async function ciudadesPermitidas(u: { id: string; rol: string }): Promise<string[] | null> {
+type ScopeCli = { rol: string; id: string; cities: string[] };
+// Alcance de visibilidad de clientes. ADMIN/COADMIN -> null (ven todo).
+async function scopeCliente(u: { id: string; rol: string }): Promise<ScopeCli | null> {
   if (u.rol === 'ADMIN' || u.rol === 'COADMIN') return null;
   const usr: any = await db.usuario.findUnique({ where: { id: u.id }, select: ({ regionId: true, ciudad: true } as any) });
   const set = new Set<string>();
@@ -23,19 +23,24 @@ async function ciudadesPermitidas(u: { id: string; rol: string }): Promise<strin
     try {
       const cs = await db.$queryRaw<any[]>(Prisma.sql`SELECT nombre FROM ciudades WHERE "regionId" = ${usr.regionId}`);
       for (const c of cs) set.add(normCiudad(c.nombre));
-    } catch { /* sin catalogo de ciudades */ }
+    } catch { /* sin catalogo */ }
   }
   if (usr?.ciudad) set.add(normCiudad(usr.ciudad));
-  return [...set];
+  return { rol: u.rol, id: u.id, cities: [...set] };
 }
-function condCiudadFrag(cities: string[] | null) {
-  if (cities === null) return null;
-  if (!cities.length) return Prisma.sql`1=0`;
-  return Prisma.sql`trim(unaccent(upper(coalesce(ciudad,'')))) IN (${Prisma.join(cities)})`;
+function condVisibilidad(sc: ScopeCli | null) {
+  if (!sc) return null;
+  const cityCond = sc.cities.length
+    ? Prisma.sql`trim(unaccent(upper(coalesce(ciudad,'')))) IN (${Prisma.join(sc.cities)})`
+    : Prisma.sql`false`;
+  if (sc.rol === 'VENDEDOR') return Prisma.sql`("creadoPorId" = ${sc.id} OR ("creadoPorId" IS NULL AND ${cityCond}))`;
+  return cityCond; // supervisor: toda su region
 }
-function condCiudad(cities: string[] | null) {
-  const f = condCiudadFrag(cities);
-  return f ? Prisma.sql` AND ${f}` : Prisma.empty;
+function visibleCli(sc: ScopeCli | null, c: any): boolean {
+  if (!sc) return true;
+  const inRegion = sc.cities.includes(normCiudad(c.ciudad));
+  if (sc.rol === 'VENDEDOR') return c.creadoPorId === sc.id || ((c.creadoPorId == null) && inRegion);
+  return inRegion;
 }
 
 // GET /api/clientes?busqueda=&dia=&pagina=&porPagina=
@@ -63,8 +68,8 @@ clientesRouter.get('/', async (req, res, next) => {
         ${porCodigo}
       )`);
     }
-    const _cc = condCiudadFrag(await ciudadesPermitidas(req.usuario!));
-    if (_cc) cond.push(_cc);
+    const _cv = condVisibilidad(await scopeCliente(req.usuario!));
+    if (_cv) cond.push(_cv);
     const where = Prisma.join(cond, ' AND ');
     const [datos, totalRows] = await Promise.all([
       db.$queryRaw<any[]>(Prisma.sql`SELECT * FROM clientes WHERE ${where} ORDER BY nombre ASC OFFSET ${skip} LIMIT ${take}`),
@@ -78,7 +83,8 @@ clientesRouter.get('/', async (req, res, next) => {
 // Debe ir ANTES de "/:id" para que Express no lo trate como un id.
 clientesRouter.get('/barrios', async (req, res, next) => {
   try {
-    const cc = condCiudad(await ciudadesPermitidas(req.usuario!));
+    const _cv = condVisibilidad(await scopeCliente(req.usuario!));
+    const cc = _cv ? Prisma.sql` AND ${_cv}` : Prisma.empty;
     const dia = req.query.dia ? Prisma.sql` AND "diaVisita" = ${Number(req.query.dia)}` : Prisma.empty;
     const filas = await db.$queryRaw<any[]>(Prisma.sql`
       SELECT barrio, COUNT(*)::int AS total FROM clientes
@@ -155,13 +161,13 @@ clientesRouter.get('/mapa', async (req, res, next) => {
   try {
     const where: any = { activo: true, lat: { not: null }, lng: { not: null } };
     if (req.query.dia) where.diaVisita = Number(req.query.dia);
-    const _cities = await ciudadesPermitidas(req.usuario!);
+    const _sc = await scopeCliente(req.usuario!);
     let clientes = await db.cliente.findMany({
       where,
-      select: { id: true, nombre: true, codigo: true, direccion: true, barrio: true, ciudad: true, telefono: true, lat: true, lng: true, diaVisita: true },
+      select: ({ id: true, nombre: true, codigo: true, direccion: true, barrio: true, ciudad: true, telefono: true, lat: true, lng: true, diaVisita: true, creadoPorId: true } as any),
       take: 5000,
     });
-    if (_cities !== null) clientes = clientes.filter((c: any) => _cities.includes(normCiudad(c.ciudad)));
+    if (_sc !== null) clientes = clientes.filter((c: any) => visibleCli(_sc, c));
     const ids = clientes.map((c: any) => c.id);
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
     const [vendidas, visitas] = ids.length ? await Promise.all([
@@ -237,11 +243,19 @@ clientesRouter.get('/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-clientesRouter.post('/', validarBody(clienteSchema), async (req, res, next) => {
+clientesRouter.post('/', validarBody(clienteCrearSchema), async (req, res, next) => {
   try {
+    // Aviso de duplicado por documento (NIT/CC).
+    const nitNuevo = String(req.body.nit ?? '').trim();
+    if (nitNuevo) {
+      const ya: any = await db.cliente.findFirst({ where: { activo: true, nit: nitNuevo }, select: { codigo: true, nombre: true } });
+      if (ya) return res.status(409).json({ error: `Ya existe un cliente con ese documento: ${ya.nombre}${ya.codigo != null ? ' (VMX-' + String(ya.codigo).padStart(4, '0') + ')' : ''}. Te recomendamos actualizar sus datos en lugar de crear uno nuevo.` });
+    }
     // Al crear un cliente individual, el sistema le asigna el siguiente código VMX.
     const codigo = (await maxCodigoCliente()) + 1;
     const data: any = { ...req.body, codigo };
+    // El cliente creado por una VENDEDORA queda a su nombre (solo ella lo ve).
+    if (req.usuario!.rol === 'VENDEDOR') data.creadoPorId = req.usuario!.id;
     // Solo supervisor/administradores definen la tipología (y con ella la lista de precio).
     if (!['ADMIN', 'COADMIN', 'SUPERVISOR'].includes(req.usuario!.rol)) {
       delete data.tipologia; delete data.listaPrecio;

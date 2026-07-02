@@ -94,6 +94,7 @@ model Cliente {
   lat           Float? // para el mapa de rutas
   lng           Float?
   diaVisita     Int? // 1=lunes … 7=domingo
+  creadoPorId   String? // vendedora que lo creó (solo ella lo ve)
   cupoCredito   Decimal   @default(0) @db.Decimal(14, 2)
   saldoPendiente Decimal  @default(0) @db.Decimal(14, 2)
   activo        Boolean   @default(true)
@@ -106,6 +107,7 @@ model Cliente {
   @@index([diaVisita, activo])
   @@index([barrio])
   @@index([ciudad])
+  @@index([creadoPorId])
   @@map("clientes")
 }
 
